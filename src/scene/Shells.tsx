@@ -1,105 +1,153 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { createLunarTexture } from './lunarTexture'
 import { scrollState } from '../lib/scroll'
+import { createLunarTexture } from './lunarTexture'
+import {
+  createShellMaterial,
+  getShellMaterialUniforms,
+} from './shellMaterial'
+import {
+  SHELL_MOTIONS,
+  sampleShellKeyframe,
+  type ShellMotion,
+  type ShellSample,
+} from './shellKeyframes'
 
-type ShellSpec = {
-  radius: number
-  position: [number, number, number]
-  spin: number
-  normalScale: number
-  tint: string
-  segments: number
-}
+/** Scales keyframe intensities (~1.0–1.45) toward the old Lambert key (~8.5). */
+const INTENSITY_SCALE = 5
 
-/**
- * Radii and offsets are deliberately irregular so the lit crescents never line
- * up concentrically — that misalignment is what gives the nested-moon look.
- */
-const SHELLS: ShellSpec[] = [
-  {
-    radius: 1.15,
-    position: [0.05, -0.95, 1.2],
-    spin: 0.05,
-    normalScale: 0.42,
-    tint: '#a8b2c4',
-    segments: 96,
-  },
-  {
-    radius: 2.25,
-    position: [-0.2, 0.4, -0.4],
-    spin: -0.036,
-    normalScale: 0.45,
-    tint: '#949aa6',
-    segments: 112,
-  },
-  {
-    radius: 3.95,
-    position: [0.3, -0.2, -2.4],
-    spin: 0.024,
-    normalScale: 0.4,
-    tint: '#848993',
-    segments: 128,
-  },
-  {
-    radius: 6.4,
-    position: [-0.45, 0.55, -5.2],
-    spin: -0.015,
-    normalScale: 0.34,
-    tint: '#737882',
-    segments: 128,
-  },
-]
+const POSITION_DAMP = 12
+const LIGHT_DAMP = 12
+const OPACITY_DAMP = 12
 
-function Shell({ spec }: { spec: ShellSpec }) {
+function Shell({ motion }: { motion: ShellMotion }) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const materialRef = useRef<THREE.MeshLambertMaterial>(null)
+  const hasInitialised = useRef(false)
   const normalMap = useMemo(() => createLunarTexture(), [])
-  const normalScale = useMemo(
-    () => new THREE.Vector2(spec.normalScale, spec.normalScale),
-    [spec.normalScale],
+
+  const sampleOut = useMemo<ShellSample>(
+    () => ({
+      position: new THREE.Vector3(),
+      lightDir: new THREE.Vector3(),
+      intensity: 0,
+    }),
+    [],
+  )
+
+  const material = useMemo(() => {
+    const k0 = motion.keyframes[0]
+    return createShellMaterial({
+      tint: motion.tint,
+      normalMap,
+      normalScale: motion.normalScale,
+      lightColor: motion.lightColor,
+      terminator: motion.terminator,
+      lightDir: new THREE.Vector3(...k0.lightDir),
+      intensity: k0.intensity * INTENSITY_SCALE,
+      opacity: 0,
+    })
+  }, [motion, normalMap])
+
+  useEffect(() => {
+    return () => {
+      material.dispose()
+    }
+  }, [material])
+
+  const uniforms = useMemo(
+    () => getShellMaterialUniforms(material),
+    [material],
   )
 
   useFrame((state, delta) => {
     const mesh = meshRef.current
-    const material = materialRef.current
-    if (!mesh || !material) return
+    if (!mesh) return
 
-    mesh.rotation.y += spec.spin * delta
+    const progress = scrollState.progress
+    sampleShellKeyframe(motion.keyframes, progress, sampleOut)
 
-    // Fade a shell out just before the camera crosses its surface so the
-    // front-face cull never pops.
+    const intensityTarget = sampleOut.intensity * INTENSITY_SCALE
     const distanceToSurface =
-      state.camera.position.distanceTo(mesh.position) - spec.radius
-    const fade = THREE.MathUtils.smoothstep(distanceToSurface, -0.4, 1.1)
-    material.opacity = THREE.MathUtils.damp(
-      material.opacity,
-      fade,
-      12,
-      delta,
+      state.camera.position.distanceTo(sampleOut.position) - motion.radius
+    const opacityTarget = THREE.MathUtils.smoothstep(
+      distanceToSurface,
+      -0.4,
+      1.1,
     )
+
+    if (!hasInitialised.current) {
+      mesh.position.copy(sampleOut.position)
+      uniforms.uLightDir.value.copy(sampleOut.lightDir).normalize()
+      uniforms.uIntensity.value = intensityTarget
+      uniforms.uOpacity.value = opacityTarget
+      hasInitialised.current = true
+    } else {
+      mesh.position.x = THREE.MathUtils.damp(
+        mesh.position.x,
+        sampleOut.position.x,
+        POSITION_DAMP,
+        delta,
+      )
+      mesh.position.y = THREE.MathUtils.damp(
+        mesh.position.y,
+        sampleOut.position.y,
+        POSITION_DAMP,
+        delta,
+      )
+      mesh.position.z = THREE.MathUtils.damp(
+        mesh.position.z,
+        sampleOut.position.z,
+        POSITION_DAMP,
+        delta,
+      )
+
+      const light = uniforms.uLightDir.value
+      light.x = THREE.MathUtils.damp(
+        light.x,
+        sampleOut.lightDir.x,
+        LIGHT_DAMP,
+        delta,
+      )
+      light.y = THREE.MathUtils.damp(
+        light.y,
+        sampleOut.lightDir.y,
+        LIGHT_DAMP,
+        delta,
+      )
+      light.z = THREE.MathUtils.damp(
+        light.z,
+        sampleOut.lightDir.z,
+        LIGHT_DAMP,
+        delta,
+      )
+      light.normalize()
+
+      uniforms.uIntensity.value = THREE.MathUtils.damp(
+        uniforms.uIntensity.value,
+        intensityTarget,
+        LIGHT_DAMP,
+        delta,
+      )
+      uniforms.uOpacity.value = THREE.MathUtils.damp(
+        uniforms.uOpacity.value,
+        opacityTarget,
+        OPACITY_DAMP,
+        delta,
+      )
+    }
+
+    mesh.rotation.y += motion.spin * delta
 
     // These spheres cover the whole viewport up close. Left visible at zero
     // opacity they would still shade every pixel, so cull them outright.
-    mesh.visible = material.opacity > 0.004
+    mesh.visible = uniforms.uOpacity.value > 0.004
   })
 
   return (
-    <mesh ref={meshRef} position={spec.position} visible={false}>
-      <sphereGeometry args={[spec.radius, spec.segments, spec.segments]} />
-      {/* Lambert rather than Standard: the surface is matte rock with no
-          environment reflections, so a full PBR BRDF costs fill rate for no
-          visible gain. */}
-      <meshLambertMaterial
-        ref={materialRef}
-        color={spec.tint}
-        normalMap={normalMap}
-        normalScale={normalScale}
-        transparent
-        opacity={0}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
+    <mesh ref={meshRef} visible={false} material={material}>
+      <sphereGeometry
+        args={[motion.radius, motion.segments, motion.segments]}
       />
     </mesh>
   )
@@ -108,6 +156,7 @@ function Shell({ spec }: { spec: ShellSpec }) {
 /** Scroll pulls the camera inward through the nested shells. */
 function CameraRig() {
   const target = useRef({ z: 17, x: 0, y: 0 })
+  const hasInitialised = useRef(false)
 
   useFrame((state, delta) => {
     const progress = scrollState.progress
@@ -118,24 +167,34 @@ function CameraRig() {
     target.current.x = Math.sin(progress * Math.PI * 1.15) * 1.9
     target.current.y = Math.sin(progress * Math.PI * 0.7) * 0.85
 
-    camera.position.x = THREE.MathUtils.damp(
-      camera.position.x,
-      target.current.x + state.pointer.x * 0.35,
-      3.5,
-      delta,
-    )
-    camera.position.y = THREE.MathUtils.damp(
-      camera.position.y,
-      target.current.y + state.pointer.y * 0.25,
-      3.5,
-      delta,
-    )
-    camera.position.z = THREE.MathUtils.damp(
-      camera.position.z,
-      target.current.z,
-      4.5,
-      delta,
-    )
+    const destX = target.current.x + state.pointer.x * 0.35
+    const destY = target.current.y + state.pointer.y * 0.25
+    const destZ = target.current.z
+
+    if (!hasInitialised.current) {
+      camera.position.set(destX, destY, destZ)
+      hasInitialised.current = true
+    } else {
+      camera.position.x = THREE.MathUtils.damp(
+        camera.position.x,
+        destX,
+        3.5,
+        delta,
+      )
+      camera.position.y = THREE.MathUtils.damp(
+        camera.position.y,
+        destY,
+        3.5,
+        delta,
+      )
+      camera.position.z = THREE.MathUtils.damp(
+        camera.position.z,
+        destZ,
+        4.5,
+        delta,
+      )
+    }
+
     camera.lookAt(0, 0, -2)
   })
 
@@ -146,13 +205,8 @@ export function Shells() {
   return (
     <>
       <CameraRig />
-      {/* Backlit key light sits nearly opposite the camera: that is what
-          reduces each sphere to a thin lit arc. */}
-      <directionalLight position={[-6, 7, -9]} intensity={8.5} color="#dfe6f5" />
-      <directionalLight position={[5, -4, -6]} intensity={2.1} color="#7d879b" />
-      <ambientLight intensity={0.015} />
-      {SHELLS.map((spec) => (
-        <Shell key={spec.radius} spec={spec} />
+      {SHELL_MOTIONS.map((motion) => (
+        <Shell key={motion.id} motion={motion} />
       ))}
     </>
   )
