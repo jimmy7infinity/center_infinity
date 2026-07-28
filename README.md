@@ -31,7 +31,7 @@ damp toward their targets each frame, which keeps motion frame-rate independent
 and adds inertia on top of Lenis' own smoothing.
 
 Shell pose and lighting are declared as keyframes in `src/scene/shellKeyframes.ts`
-(position, `lightDir`, intensity per shell). `Shells.tsx` samples
+(position, `lightDir`, intensity, `spinAxis`, `spinRate` per shell). `Shells.tsx` samples
 `scrollState.progress` each frame and damps toward the interpolated targets.
 Progress **0** is the Center Infinity logo composition (`docs/reference/logo.png`):
 four nested crescents with A and B top-lit, C and D bottom-lit. On first paint

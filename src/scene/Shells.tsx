@@ -66,8 +66,10 @@ function sampleCameraKeyframe(progress: number): CameraKeyframe {
 
 function Shell({ motion }: { motion: ShellMotion }) {
   const groupRef = useRef<THREE.Group>(null)
+  const spinRef = useRef<THREE.Group>(null)
   const meshRef = useRef<THREE.Mesh>(null)
   const hasInitialised = useRef(false)
+  const spinAxisScratch = useRef(new THREE.Vector3())
   const normalMap = useMemo(() => createLunarTexture(), [])
 
   const sampleOut = useMemo<ShellSample>(
@@ -75,6 +77,8 @@ function Shell({ motion }: { motion: ShellMotion }) {
       position: new THREE.Vector3(),
       lightDir: new THREE.Vector3(),
       intensity: 0,
+      spinAxis: new THREE.Vector3(0, 1, 0),
+      spinRate: 0,
     }),
     [],
   )
@@ -181,7 +185,14 @@ function Shell({ motion }: { motion: ShellMotion }) {
       )
     }
 
-    group.rotation.y += motion.spin * delta
+    const spinGroup = spinRef.current
+    if (spinGroup && sampleOut.spinRate !== 0) {
+      spinAxisScratch.current.copy(sampleOut.spinAxis).normalize()
+      spinGroup.rotateOnAxis(
+        spinAxisScratch.current,
+        sampleOut.spinRate * delta,
+      )
+    }
 
     const mesh = meshRef.current
     if (!mesh) return
@@ -193,11 +204,13 @@ function Shell({ motion }: { motion: ShellMotion }) {
 
   return (
     <group ref={groupRef}>
-      <mesh ref={meshRef} material={material} visible={false} frustumCulled>
-        <sphereGeometry
-          args={[motion.radius, motion.segments, motion.segments]}
-        />
-      </mesh>
+      <group ref={spinRef}>
+        <mesh ref={meshRef} material={material} visible={false} frustumCulled>
+          <sphereGeometry
+            args={[motion.radius, motion.segments, motion.segments]}
+          />
+        </mesh>
+      </group>
     </group>
   )
 }
