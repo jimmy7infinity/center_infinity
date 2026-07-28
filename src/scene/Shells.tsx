@@ -18,7 +18,7 @@ import {
  * Scales keyframe intensities (~0.65–0.92) for additive shells. Kept low so
  * overlapping rim crescents sum without blowing out to white under bloom.
  */
-const INTENSITY_SCALE = 2.8
+const INTENSITY_SCALE = 2.2
 
 const POSITION_DAMP = 12
 const LIGHT_DAMP = 12

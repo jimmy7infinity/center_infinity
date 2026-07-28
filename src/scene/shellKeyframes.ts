@@ -45,7 +45,8 @@ function viewHeightAtDistance(d: number): number {
 
 /**
  * Map square-viewport centre fractions (0..1, y down) to world x/y at depth z.
- * Camera sits at z ≈ 17 on progress 0; shells are placed on staggered z planes.
+ * Camera sits at z ≈ 17 on progress 0; shells sit on a tight z cluster so the
+ * logo reads nearly flat rather than as a perspective S-curve.
  */
 function viewportToWorld(
   fx: number,
@@ -60,143 +61,150 @@ function viewportToWorld(
   return [x, y, z]
 }
 
+/** World-space radius so a shell projects to `diameterFrac` of the viewport. */
+function radiusFromDiameter(diameterFrac: number, z: number): number {
+  const d = 17 - z
+  return diameterFrac * d * Math.tan(21 * DEG)
+}
+
 /**
  * Normalised direction toward a light above or below the shell.
  * Negative `tiltZ` places the source behind the shells (−Z) so the camera at +Z
  * sees rim crescents instead of front-face discs.
  */
-function lightFromAbove(tiltX = 0, tiltZ = -0.55): [number, number, number] {
+function lightFromAbove(tiltX = 0, tiltZ = -0.28): [number, number, number] {
   const v = new THREE.Vector3(tiltX, 1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
 
-function lightFromBelow(tiltX = 0, tiltZ = -0.55): [number, number, number] {
+function lightFromBelow(tiltX = 0, tiltZ = -0.28): [number, number, number] {
   const v = new THREE.Vector3(tiltX, -1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
 
 /**
  * Four nested crescents. Progress 0 matches the logo composition: A and B
- * top-lit, C and D bottom-lit, staggered vertically around a dark centre.
+ * top-lit, C and D bottom-lit, vertically nested around a dark centre.
+ * Shells share a tight z cluster so perspective does not drift into an S-curve.
  */
 export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'A',
-    radius: 6.4,
+    radius: radiusFromDiameter(0.82, -2.25),
     spin: -0.015,
     normalScale: 0.34,
     tint: '#737882',
-    segments: 128,
+    segments: 96,
     lightColor: '#dfe6f5',
-    terminator: 0.12,
+    terminator: 0.1,
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.46, -5.2),
-        lightDir: lightFromAbove(-0.35, -0.62),
-        intensity: 0.88,
+        position: viewportToWorld(0.5, 0.46, -2.25),
+        lightDir: lightFromAbove(-0.1, -0.22),
+        intensity: 0.72,
       },
       {
         at: 0.45,
-        position: [0.75, 0.15, -3.4],
-        lightDir: lightFromAbove(-0.18, -0.52),
-        intensity: 0.78,
+        position: [0.55, 0.35, -2.1],
+        lightDir: lightFromAbove(-0.18, -0.32),
+        intensity: 0.72,
       },
       {
         at: 1,
-        position: [1.15, -0.35, -1.6],
-        lightDir: lightFromAbove(0.05, -0.45),
-        intensity: 0.68,
+        position: [1.05, -0.15, -1.4],
+        lightDir: lightFromAbove(0.02, -0.38),
+        intensity: 0.66,
       },
     ],
   },
   {
     id: 'B',
-    radius: 2.25,
+    radius: radiusFromDiameter(0.44, -2.25),
     spin: -0.036,
     normalScale: 0.45,
     tint: '#949aa6',
-    segments: 112,
+    segments: 96,
     lightColor: '#dfe6f5',
-    terminator: 0.13,
+    terminator: 0.1,
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.37, -0.4),
-        lightDir: lightFromAbove(0.05, -0.58),
-        intensity: 0.92,
+        position: viewportToWorld(0.5, 0.37, -2.25),
+        lightDir: lightFromAbove(0, -0.24),
+        intensity: 0.68,
       },
       {
         at: 0.45,
-        position: [-0.55, 0.85, -1.1],
-        lightDir: lightFromAbove(0.14, -0.48),
-        intensity: 0.82,
+        position: [-0.45, 0.95, -1.6],
+        lightDir: lightFromAbove(0.1, -0.34),
+        intensity: 0.74,
       },
       {
         at: 1,
-        position: [-0.95, 0.25, -1.9],
-        lightDir: lightFromAbove(0.22, -0.42),
-        intensity: 0.72,
+        position: [-0.85, 0.35, -1.2],
+        lightDir: lightFromAbove(0.18, -0.4),
+        intensity: 0.68,
       },
     ],
   },
   {
     id: 'C',
-    radius: 3.95,
+    radius: radiusFromDiameter(0.57, -2.25),
     spin: 0.024,
     normalScale: 0.4,
     tint: '#848993',
-    segments: 128,
+    segments: 96,
     lightColor: '#c8d0e0',
-    terminator: 0.14,
+    terminator: 0.11,
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.51, 0.66, -2.4),
-        lightDir: lightFromBelow(0.12, -0.6),
-        intensity: 0.85,
+        position: viewportToWorld(0.5, 0.66, -2.25),
+        lightDir: lightFromBelow(0.06, -0.22),
+        intensity: 0.7,
       },
       {
         at: 0.45,
-        position: [-0.35, -1.15, -0.9],
-        lightDir: lightFromBelow(-0.08, -0.5),
-        intensity: 0.75,
+        position: [-0.25, -1.05, -1.5],
+        lightDir: lightFromBelow(-0.06, -0.32),
+        intensity: 0.7,
       },
       {
         at: 1,
-        position: [0.45, -0.35, -0.35],
-        lightDir: lightFromBelow(0.12, -0.44),
-        intensity: 0.65,
+        position: [0.35, -0.25, -0.8],
+        lightDir: lightFromBelow(0.1, -0.38),
+        intensity: 0.64,
       },
     ],
   },
   {
     id: 'D',
-    radius: 1.15,
+    radius: radiusFromDiameter(0.22, -2.25),
     spin: 0.05,
     normalScale: 0.42,
     tint: '#a8b2c4',
     segments: 96,
     lightColor: '#c8d0e0',
-    terminator: 0.15,
+    terminator: 0.11,
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.69, 1.2),
-        lightDir: lightFromBelow(-0.28, -0.55),
-        intensity: 0.9,
+        position: viewportToWorld(0.5, 0.69, -2.25),
+        lightDir: lightFromBelow(-0.1, -0.2),
+        intensity: 0.7,
       },
       {
         at: 0.45,
-        position: [0.35, -0.95, 0.15],
-        lightDir: lightFromBelow(-0.18, -0.48),
-        intensity: 0.78,
+        position: [0.28, -0.88, -1.2],
+        lightDir: lightFromBelow(-0.12, -0.3),
+        intensity: 0.72,
       },
       {
         at: 1,
-        position: [0.65, -0.15, -0.75],
-        lightDir: lightFromBelow(-0.1, -0.42),
-        intensity: 0.68,
+        position: [0.55, -0.05, -0.65],
+        lightDir: lightFromBelow(-0.06, -0.36),
+        intensity: 0.66,
       },
     ],
   },
