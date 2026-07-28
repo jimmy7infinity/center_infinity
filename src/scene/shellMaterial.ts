@@ -86,6 +86,14 @@ varying vec3 vWorldTangent;
 varying vec3 vWorldBitangent;
 
 void main() {
+  vec3 L = normalize(uLightDir);
+
+  // Cheap hemispherical cull before normal-map fetch (dark side is black under additive).
+  float ndotlGeom = dot(normalize(vWorldNormal), L);
+  float litGeom = smoothstep(-uTerminator, uTerminator, ndotlGeom);
+  float contribGeom = litGeom * uOpacity;
+  if (contribGeom < 0.004) discard;
+
   vec3 mapNormal = texture2D(uNormalMap, vUv).xyz * 2.0 - 1.0;
   mapNormal.xy *= uNormalScale;
 
@@ -96,9 +104,11 @@ void main() {
   );
   vec3 N = normalize(tbn * mapNormal);
 
-  vec3 L = normalize(uLightDir);
   float ndotl = dot(N, L);
   float lit = smoothstep(-uTerminator, uTerminator, ndotl);
+
+  float contrib = lit * uOpacity;
+  if (contrib < 0.004) discard;
 
   vec3 rgb = uTint * uLightColor * uIntensity * lit;
   gl_FragColor = vec4(rgb, uOpacity);

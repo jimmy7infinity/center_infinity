@@ -37,11 +37,11 @@ function Effects({ tier }: { tier: QualityTier }) {
   return (
     <EffectComposer multisampling={0}>
       <Bloom
-        intensity={1.05}
+        intensity={0.95}
         luminanceThreshold={0.14}
         luminanceSmoothing={0.35}
         mipmapBlur
-        resolutionScale={0.5}
+        resolutionScale={0.4}
       />
       {/* The frost/glitch feel on the Igloo site comes from a very small
           radially-modulated aberration, not a large offset. */}
