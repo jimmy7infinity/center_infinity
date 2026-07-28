@@ -25,29 +25,7 @@ function Header() {
 }
 
 function Hero() {
-  return (
-    <section
-      id="top"
-      className="flex min-h-screen flex-col justify-end px-6 pb-24 md:px-12 md:pb-32"
-    >
-      <Reveal>
-        <p className="label mb-6">Product studio · Koh Phangan, Thailand</p>
-      </Reveal>
-      <Reveal delay={120}>
-        <h1 className="max-w-4xl font-serif text-[clamp(2.75rem,8vw,7rem)] leading-[0.92] tracking-[-0.02em] text-balance-tight">
-          We build products
-          <br />
-          <span className="italic text-glow">all the way to shipped.</span>
-        </h1>
-      </Reveal>
-      <Reveal delay={240}>
-        <p className="mt-8 max-w-md text-base leading-relaxed text-regolith">
-          Full-stack design and engineering for founders who need the thing to
-          actually exist — not a deck about it.
-        </p>
-      </Reveal>
-    </section>
-  )
+  return <section id="top" className="min-h-screen" />
 }
 
 function Services() {

@@ -39,10 +39,10 @@ type CameraKeyframe = {
 /** Beat-timed dolly aligned to shell tableaux at 0 / 0.25 / 0.5 / 0.75 / 1.0. */
 const CAMERA_KEYFRAMES: CameraKeyframe[] = [
   { at: 0, x: 0, y: 0, z: 17, fov: 42 },
-  { at: 0.25, x: 0.9, y: 0.45, z: 14.5, fov: 46 },
-  { at: 0.5, x: 2.2, y: 1.1, z: 9.0, fov: 50 },
-  { at: 0.75, x: 3.4, y: -0.35, z: 2.0, fov: 46 },
-  { at: 1, x: 4.8, y: -1.1, z: -5.5, fov: 38 },
+  { at: 0.25, x: 0.2, y: 0.1, z: 15, fov: 44 },
+  { at: 0.5, x: 0.4, y: 0.2, z: 11, fov: 48 },
+  { at: 0.75, x: 0.8, y: -0.2, z: 5, fov: 46 },
+  { at: 1, x: 1.2, y: -0.4, z: -2, fov: 40 },
 ]
 
 function sampleCameraKeyframe(progress: number): CameraKeyframe {
