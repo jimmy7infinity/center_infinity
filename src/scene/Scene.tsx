@@ -10,7 +10,7 @@ import {
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import { Shells } from './Shells'
-import { ShootingStars } from './ShootingStars'
+import { DriftingRocks } from './DriftingRocks'
 import { Starfield } from './Starfield'
 import { dprFor, type QualityTier } from '../lib/quality'
 
@@ -71,9 +71,11 @@ export function Scene({ tier }: { tier: QualityTier }) {
     >
       <color attach="background" args={['#000000']} />
       <fog attach="fog" args={['#000000', 62, 145]} />
+      <ambientLight intensity={0.25} />
+      <directionalLight position={[5, 8, 12]} intensity={0.7} />
       <Shells />
       <Starfield count={tier === 'high' ? 1600 : 700} />
-      <ShootingStars />
+      <DriftingRocks />
       <Effects tier={tier} />
     </Canvas>
   )

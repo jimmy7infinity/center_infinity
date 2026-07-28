@@ -81,12 +81,12 @@ function radiusFromDiameter(diameterFrac: number, z: number): number {
  * Negative `tiltZ` places the source behind the shells (−Z) so the camera at +Z
  * sees rim crescents instead of front-face discs.
  */
-function lightFromAbove(tiltX = 0, tiltZ = -0.28): [number, number, number] {
+function lightFromAbove(tiltX = 0, tiltZ = -0.6): [number, number, number] {
   const v = new THREE.Vector3(tiltX, 1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
 
-function lightFromBelow(tiltX = 0, tiltZ = -0.28): [number, number, number] {
+function lightFromBelow(tiltX = 0, tiltZ = -0.6): [number, number, number] {
   const v = new THREE.Vector3(tiltX, -1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
@@ -105,12 +105,12 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     tint: '#858a94',
     segments: 96,
     lightColor: '#e8edf8',
-    terminator: 0.09,
+    terminator: 0.12,
     keyframes: [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.46, Z_A),
-        lightDir: lightFromAbove(-0.1, -0.22),
+        lightDir: lightFromAbove(-0.12, -0.65),
         intensity: 0.76,
       },
       {
@@ -147,12 +147,12 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     tint: '#9ca1ad',
     segments: 96,
     lightColor: '#e8edf8',
-    terminator: 0.09,
+    terminator: 0.12,
     keyframes: [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.37, Z_B),
-        lightDir: lightFromAbove(0, -0.24),
+        lightDir: lightFromAbove(0.05, -0.6),
         intensity: 0.88,
       },
       {
@@ -194,7 +194,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.66, Z_C),
-        lightDir: lightFromBelow(0.06, -0.22),
+        lightDir: lightFromBelow(0.08, -0.62),
         intensity: 0.75,
       },
       {
@@ -236,7 +236,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.69, Z_D),
-        lightDir: lightFromBelow(-0.1, -0.2),
+        lightDir: lightFromBelow(-0.12, -0.58),
         intensity: 0.9,
       },
       {

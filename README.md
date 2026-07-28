@@ -41,8 +41,7 @@ Each shell uses a custom `ShaderMaterial` in `src/scene/shellMaterial.ts` with
 its own `uLightDir`, intensity, and color — no scene-wide lights. The fragment
 shader shades a lit crescent from that direction; the dark hemisphere stays
 opaque. Materials use **NormalBlending with `depthWrite: true`**, so shells
-occlude each other. The starfield and shooting stars still use additive
-blending. Radii and offsets are deliberately irregular so the lit arcs don't
+occlude each other. The starfield still uses additive blending; drifting space rocks are lit matte meshes. Radii and offsets are deliberately irregular so the lit arcs don't
 line up concentrically.
 
 Surface detail is generated at runtime in `src/scene/lunarTexture.ts` — value-noise
