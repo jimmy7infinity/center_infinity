@@ -22,18 +22,28 @@ Lenis · Tailwind CSS v4
 
 ```text
 Lenis  →  scrollState (mutable singleton)  →  useFrame  →  camera position
+                                                      └→  shell position / lightDir / intensity
 ```
 
 Scroll is written to a plain mutable object rather than React state, so moving
-the camera never triggers a re-render. `CameraRig` damps toward the target each
-frame, which keeps motion frame-rate independent and adds inertia on top of
-Lenis' own smoothing.
+the camera and shells never triggers a re-render. `CameraRig` and each shell
+damp toward their targets each frame, which keeps motion frame-rate independent
+and adds inertia on top of Lenis' own smoothing.
 
-The four shells in `src/scene/Shells.tsx` use **additive blending with
-`depthWrite: false`**. That is what produces the overlapping-crescent look: the
-unlit hemisphere of each sphere is black, and black contributes nothing under
-additive blending, so outer shells never occlude inner ones. Radii and offsets
-are deliberately irregular so the lit arcs don't line up concentrically.
+Shell pose and lighting are declared as keyframes in `src/scene/shellKeyframes.ts`
+(position, `lightDir`, intensity per shell). `Shells.tsx` samples
+`scrollState.progress` each frame and damps toward the interpolated targets.
+Progress **0** is the Center Infinity logo composition (`docs/reference/logo.png`):
+four nested crescents with A and B top-lit, C and D bottom-lit. On first paint
+each shell snaps to that progress-0 pose rather than fading in individually.
+
+Each shell uses a custom `ShaderMaterial` in `src/scene/shellMaterial.ts` with
+its own `uLightDir`, intensity, and color — no scene-wide lights. The fragment
+shader culls the dark hemisphere before the normal-map fetch, then shades the
+lit arc. Materials use **additive blending with `depthWrite: false`**, so black
+(unlit) fragments contribute nothing and outer shells never occlude inner ones.
+Radii and offsets are deliberately irregular so the lit arcs don't line up
+concentrically.
 
 Surface detail is generated at runtime in `src/scene/lunarTexture.ts` — value-noise
 fbm plus stamped craters on a 2D canvas, converted to a tangent-space normal map
@@ -41,16 +51,18 @@ with a Sobel filter. Nothing is fetched, so the scene ships zero texture bytes.
 
 ## Performance notes
 
-These spheres cover the entire viewport up close, so the scene is **fill-rate
-bound**. The things that matter, in order of impact:
+Four logo-sized shells overlap and cover the entire viewport up close, so the
+scene is **fill-rate bound**. Discarding unlit hemisphere fragments before the
+normal-map fetch matters — without it every shell shades every pixel it covers.
+The things that matter, in order of impact:
 
 | Decision | Why |
 |---|---|
 | `mesh.visible = false` once faded | A shell at opacity 0 still shades every pixel it covers |
 | Normal map, not bump map | Bump mapping costs 3 texture fetches + derivatives per fragment; a normal map costs 1 |
-| `dpr` capped at 1.25 | All text is DOM, so canvas density only affects soft bloomed gradients |
-| `MeshLambertMaterial` | Matte rock with no environment reflections does not need a PBR BRDF |
-| `Bloom resolutionScale={0.5}` | The glow is broad and soft; half resolution is indistinguishable |
+| `dpr` capped at 1 | All text is DOM, so canvas density only affects soft bloomed gradients |
+| Custom per-shell shader | Cheaper than per-frame light loops; `discard` on dark hemispheres skips the normal-map fetch |
+| `Bloom resolutionScale={0.4}` | The glow is broad and soft; sub-half resolution is indistinguishable |
 
 Measured on an Apple M4, production build: ~55 FPS throughout the scroll.
 Before these changes the same scene ran at 14 FPS.
