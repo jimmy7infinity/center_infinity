@@ -14,8 +14,11 @@ import {
   type ShellSample,
 } from './shellKeyframes'
 
-/** Scales keyframe intensities (~1.0–1.45) toward the old Lambert key (~8.5). */
-const INTENSITY_SCALE = 5
+/**
+ * Scales keyframe intensities (~0.65–0.92) for additive shells. Kept low so
+ * overlapping rim crescents sum without blowing out to white under bloom.
+ */
+const INTENSITY_SCALE = 2.8
 
 const POSITION_DAMP = 12
 const LIGHT_DAMP = 12

@@ -60,13 +60,17 @@ function viewportToWorld(
   return [x, y, z]
 }
 
-/** Normalised direction toward a light above or below the shell. */
-function lightFromAbove(tiltX = 0, tiltZ = 0.3): [number, number, number] {
+/**
+ * Normalised direction toward a light above or below the shell.
+ * Negative `tiltZ` places the source behind the shells (−Z) so the camera at +Z
+ * sees rim crescents instead of front-face discs.
+ */
+function lightFromAbove(tiltX = 0, tiltZ = -0.55): [number, number, number] {
   const v = new THREE.Vector3(tiltX, 1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
 
-function lightFromBelow(tiltX = 0, tiltZ = 0.3): [number, number, number] {
+function lightFromBelow(tiltX = 0, tiltZ = -0.55): [number, number, number] {
   const v = new THREE.Vector3(tiltX, -1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
@@ -84,25 +88,25 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     tint: '#737882',
     segments: 128,
     lightColor: '#dfe6f5',
-    terminator: 0.22,
+    terminator: 0.12,
     keyframes: [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.46, -5.2),
-        lightDir: lightFromAbove(-0.28, 0.28),
-        intensity: 1.35,
+        lightDir: lightFromAbove(-0.35, -0.62),
+        intensity: 0.88,
       },
       {
         at: 0.45,
         position: [0.75, 0.15, -3.4],
-        lightDir: lightFromAbove(-0.12, 0.42),
-        intensity: 1.15,
+        lightDir: lightFromAbove(-0.18, -0.52),
+        intensity: 0.78,
       },
       {
         at: 1,
         position: [1.15, -0.35, -1.6],
-        lightDir: lightFromAbove(0.08, 0.52),
-        intensity: 0.95,
+        lightDir: lightFromAbove(0.05, -0.45),
+        intensity: 0.68,
       },
     ],
   },
@@ -114,25 +118,25 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     tint: '#949aa6',
     segments: 112,
     lightColor: '#dfe6f5',
-    terminator: 0.24,
+    terminator: 0.13,
     keyframes: [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.37, -0.4),
-        lightDir: lightFromAbove(0, 0.25),
-        intensity: 1.45,
+        lightDir: lightFromAbove(0.05, -0.58),
+        intensity: 0.92,
       },
       {
         at: 0.45,
         position: [-0.55, 0.85, -1.1],
-        lightDir: lightFromAbove(0.12, 0.38),
-        intensity: 1.25,
+        lightDir: lightFromAbove(0.14, -0.48),
+        intensity: 0.82,
       },
       {
         at: 1,
         position: [-0.95, 0.25, -1.9],
-        lightDir: lightFromAbove(0.22, 0.45),
-        intensity: 1.05,
+        lightDir: lightFromAbove(0.22, -0.42),
+        intensity: 0.72,
       },
     ],
   },
@@ -144,25 +148,25 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     tint: '#848993',
     segments: 128,
     lightColor: '#c8d0e0',
-    terminator: 0.26,
+    terminator: 0.14,
     keyframes: [
       {
         at: 0,
         position: viewportToWorld(0.51, 0.66, -2.4),
-        lightDir: lightFromBelow(0.1, 0.32),
-        intensity: 1.3,
+        lightDir: lightFromBelow(0.12, -0.6),
+        intensity: 0.85,
       },
       {
         at: 0.45,
         position: [-0.35, -1.15, -0.9],
-        lightDir: lightFromBelow(-0.05, 0.4),
-        intensity: 1.1,
+        lightDir: lightFromBelow(-0.08, -0.5),
+        intensity: 0.75,
       },
       {
         at: 1,
         position: [0.45, -0.35, -0.35],
-        lightDir: lightFromBelow(0.15, 0.48),
-        intensity: 0.92,
+        lightDir: lightFromBelow(0.12, -0.44),
+        intensity: 0.65,
       },
     ],
   },
@@ -174,25 +178,25 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     tint: '#a8b2c4',
     segments: 96,
     lightColor: '#c8d0e0',
-    terminator: 0.28,
+    terminator: 0.15,
     keyframes: [
       {
         at: 0,
         position: viewportToWorld(0.5, 0.69, 1.2),
-        lightDir: lightFromBelow(-0.22, 0.26),
-        intensity: 1.4,
+        lightDir: lightFromBelow(-0.28, -0.55),
+        intensity: 0.9,
       },
       {
         at: 0.45,
         position: [0.35, -0.95, 0.15],
-        lightDir: lightFromBelow(-0.14, 0.36),
-        intensity: 1.2,
+        lightDir: lightFromBelow(-0.18, -0.48),
+        intensity: 0.78,
       },
       {
         at: 1,
         position: [0.65, -0.15, -0.75],
-        lightDir: lightFromBelow(-0.08, 0.46),
-        intensity: 1.0,
+        lightDir: lightFromBelow(-0.1, -0.42),
+        intensity: 0.68,
       },
     ],
   },
