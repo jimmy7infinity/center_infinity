@@ -106,12 +106,13 @@ void main() {
 
   float ndotl = dot(N, L);
   float lit = smoothstep(-uTerminator, uTerminator, ndotl);
+  lit = pow(lit, 1.35);
 
   float contrib = lit * uOpacity;
   if (contrib < 0.004) discard;
 
   vec3 rgb = uTint * uLightColor * uIntensity * lit;
-  gl_FragColor = vec4(rgb, uOpacity);
+  gl_FragColor = vec4(rgb * uOpacity, 1.0);
 }
 `
 
@@ -135,6 +136,7 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     fragmentShader: FRAGMENT_SHADER,
     transparent: true,
     depthWrite: false,
+    depthTest: false,
     blending: THREE.AdditiveBlending,
   })
 }

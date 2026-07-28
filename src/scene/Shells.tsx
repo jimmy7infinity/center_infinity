@@ -15,17 +15,57 @@ import {
 } from './shellKeyframes'
 
 /**
- * Scales keyframe intensities (~0.65–0.92) for additive shells. Kept low so
- * overlapping rim crescents sum without blowing out to white under bloom.
+ * Scales keyframe intensities (~0.7–0.85) for additive shells. Middle ground
+ * between legibility and bloom headroom on overlapping rim crescents.
  */
-const INTENSITY_SCALE = 1.32
+const INTENSITY_SCALE = 1.82
 
 const POSITION_DAMP = 12
 const LIGHT_DAMP = 12
 const OPACITY_DAMP = 12
 
+const CAMERA_DAMP_XY = 2.4
+const CAMERA_DAMP_Z = 2.8
+const CAMERA_DAMP_FOV = 2.2
+
+type CameraKeyframe = {
+  at: number
+  x: number
+  y: number
+  z: number
+  fov: number
+}
+
+/** Beat-timed dolly: logo hold, long approach, inward plunge, deep narrow. */
+const CAMERA_KEYFRAMES: CameraKeyframe[] = [
+  { at: 0, x: 0, y: 0, z: 17, fov: 42 },
+  { at: 0.2, x: 0.35, y: 0.12, z: 16.4, fov: 43 },
+  { at: 0.45, x: 2.6, y: 1.35, z: 8.5, fov: 52 },
+  { at: 0.7, x: 4.2, y: -0.55, z: 0.8, fov: 46 },
+  { at: 1, x: 5.5, y: -1.35, z: -7.5, fov: 38 },
+]
+
+function sampleCameraKeyframe(progress: number): CameraKeyframe {
+  const t = THREE.MathUtils.clamp(progress, 0, 1)
+  let i = 0
+  while (i < CAMERA_KEYFRAMES.length - 1 && CAMERA_KEYFRAMES[i + 1].at < t) {
+    i += 1
+  }
+  const a = CAMERA_KEYFRAMES[i]
+  const b = CAMERA_KEYFRAMES[Math.min(i + 1, CAMERA_KEYFRAMES.length - 1)]
+  const span = b.at - a.at
+  const u = span > 0 ? (t - a.at) / span : 0
+  return {
+    at: t,
+    x: THREE.MathUtils.lerp(a.x, b.x, u),
+    y: THREE.MathUtils.lerp(a.y, b.y, u),
+    z: THREE.MathUtils.lerp(a.z, b.z, u),
+    fov: THREE.MathUtils.lerp(a.fov, b.fov, u),
+  }
+}
+
 function Shell({ motion }: { motion: ShellMotion }) {
-  const meshRef = useRef<THREE.Mesh>(null)
+  const groupRef = useRef<THREE.Group>(null)
   const hasInitialised = useRef(false)
   const normalMap = useMemo(() => createLunarTexture(), [])
 
@@ -64,8 +104,8 @@ function Shell({ motion }: { motion: ShellMotion }) {
   )
 
   useFrame((state, delta) => {
-    const mesh = meshRef.current
-    if (!mesh) return
+    const group = groupRef.current
+    if (!group) return
 
     const progress = scrollState.progress
     sampleShellKeyframe(motion.keyframes, progress, sampleOut)
@@ -80,26 +120,26 @@ function Shell({ motion }: { motion: ShellMotion }) {
     )
 
     if (!hasInitialised.current) {
-      mesh.position.copy(sampleOut.position)
+      group.position.copy(sampleOut.position)
       uniforms.uLightDir.value.copy(sampleOut.lightDir).normalize()
       uniforms.uIntensity.value = intensityTarget
       uniforms.uOpacity.value = opacityTarget
       hasInitialised.current = true
     } else {
-      mesh.position.x = THREE.MathUtils.damp(
-        mesh.position.x,
+      group.position.x = THREE.MathUtils.damp(
+        group.position.x,
         sampleOut.position.x,
         POSITION_DAMP,
         delta,
       )
-      mesh.position.y = THREE.MathUtils.damp(
-        mesh.position.y,
+      group.position.y = THREE.MathUtils.damp(
+        group.position.y,
         sampleOut.position.y,
         POSITION_DAMP,
         delta,
       )
-      mesh.position.z = THREE.MathUtils.damp(
-        mesh.position.z,
+      group.position.z = THREE.MathUtils.damp(
+        group.position.z,
         sampleOut.position.z,
         POSITION_DAMP,
         delta,
@@ -140,62 +180,82 @@ function Shell({ motion }: { motion: ShellMotion }) {
       )
     }
 
-    mesh.rotation.y += motion.spin * delta
+    group.rotation.y += motion.spin * delta
 
     // These spheres cover the whole viewport up close. Left visible at zero
     // opacity they would still shade every pixel, so cull them outright.
-    mesh.visible = uniforms.uOpacity.value > 0.004
+    group.visible = uniforms.uOpacity.value > 0.004
   })
 
   return (
-    <mesh ref={meshRef} visible={false} material={material}>
-      <sphereGeometry
-        args={[motion.radius, motion.segments, motion.segments]}
-      />
-    </mesh>
+    <group ref={groupRef} visible={false}>
+      <mesh frustumCulled>
+        <sphereGeometry
+          args={[motion.radius, motion.segments, motion.segments]}
+        />
+        <meshBasicMaterial colorWrite={false} depthWrite depthTest />
+      </mesh>
+      <mesh material={material}>
+        <sphereGeometry
+          args={[motion.radius, motion.segments, motion.segments]}
+        />
+      </mesh>
+    </group>
   )
 }
 
 /** Scroll pulls the camera inward through the nested shells. */
 function CameraRig() {
-  const target = useRef({ z: 17, x: 0, y: 0 })
+  const fovRef = useRef(42)
   const hasInitialised = useRef(false)
 
   useFrame((state, delta) => {
     const progress = scrollState.progress
     const camera = state.camera
+    const beat = sampleCameraKeyframe(progress)
 
-    target.current.z = THREE.MathUtils.lerp(17, -7.5, progress)
-    // A slow lateral arc keeps the crescents shifting rather than just scaling.
-    target.current.x = Math.sin(progress * Math.PI * 1.15) * 1.9
-    target.current.y = Math.sin(progress * Math.PI * 0.7) * 0.85
-
-    const destX = target.current.x + state.pointer.x * 0.35
-    const destY = target.current.y + state.pointer.y * 0.25
-    const destZ = target.current.z
+    const destX = beat.x + state.pointer.x * 0.35
+    const destY = beat.y + state.pointer.y * 0.25
+    const destZ = beat.z
 
     if (!hasInitialised.current) {
       camera.position.set(destX, destY, destZ)
+      fovRef.current = beat.fov
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = beat.fov
+        camera.updateProjectionMatrix()
+      }
       hasInitialised.current = true
     } else {
       camera.position.x = THREE.MathUtils.damp(
         camera.position.x,
         destX,
-        3.5,
+        CAMERA_DAMP_XY,
         delta,
       )
       camera.position.y = THREE.MathUtils.damp(
         camera.position.y,
         destY,
-        3.5,
+        CAMERA_DAMP_XY,
         delta,
       )
       camera.position.z = THREE.MathUtils.damp(
         camera.position.z,
         destZ,
-        4.5,
+        CAMERA_DAMP_Z,
         delta,
       )
+
+      fovRef.current = THREE.MathUtils.damp(
+        fovRef.current,
+        beat.fov,
+        CAMERA_DAMP_FOV,
+        delta,
+      )
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = fovRef.current
+        camera.updateProjectionMatrix()
+      }
     }
 
     camera.lookAt(0, 0, -2)

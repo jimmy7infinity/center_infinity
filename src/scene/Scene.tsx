@@ -10,6 +10,7 @@ import {
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import { Shells } from './Shells'
+import { ShootingStars } from './ShootingStars'
 import { Starfield } from './Starfield'
 import { dprFor, type QualityTier } from '../lib/quality'
 
@@ -23,13 +24,13 @@ function Effects({ tier }: { tier: QualityTier }) {
     return (
       <EffectComposer>
         <Bloom
-          intensity={0.68}
-          luminanceThreshold={0.18}
-          luminanceSmoothing={0.32}
+          intensity={0.72}
+          luminanceThreshold={0.17}
+          luminanceSmoothing={0.3}
           mipmapBlur
           resolutionScale={0.4}
         />
-        <Vignette offset={0.3} darkness={0.72} />
+        <Vignette offset={0.3} darkness={0.68} />
       </EffectComposer>
     )
   }
@@ -37,9 +38,9 @@ function Effects({ tier }: { tier: QualityTier }) {
   return (
     <EffectComposer multisampling={0}>
       <Bloom
-        intensity={0.62}
-        luminanceThreshold={0.14}
-        luminanceSmoothing={0.35}
+        intensity={0.8}
+        luminanceThreshold={0.15}
+        luminanceSmoothing={0.32}
         mipmapBlur
         resolutionScale={0.4}
       />
@@ -50,7 +51,7 @@ function Effects({ tier }: { tier: QualityTier }) {
         radialModulation
         modulationOffset={0.42}
       />
-      <Vignette offset={0.28} darkness={0.78} />
+      <Vignette offset={0.28} darkness={0.72} />
       <Noise opacity={0.035} blendFunction={BlendFunction.OVERLAY} />
     </EffectComposer>
   )
@@ -69,9 +70,10 @@ export function Scene({ tier }: { tier: QualityTier }) {
       camera={{ position: [0, 0, 17], fov: 42, near: 0.1, far: 120 }}
     >
       <color attach="background" args={['#000000']} />
-      <fog attach="fog" args={['#000000', 24, 78]} />
+      <fog attach="fog" args={['#000000', 32, 105]} />
       <Shells />
-      <Starfield count={tier === 'high' ? 900 : 400} />
+      <Starfield count={tier === 'high' ? 1200 : 400} />
+      <ShootingStars />
       <Effects tier={tier} />
     </Canvas>
   )
