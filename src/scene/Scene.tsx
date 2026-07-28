@@ -23,7 +23,7 @@ function Effects({ tier }: { tier: QualityTier }) {
     return (
       <EffectComposer>
         <Bloom
-          intensity={0.85}
+          intensity={0.68}
           luminanceThreshold={0.18}
           luminanceSmoothing={0.32}
           mipmapBlur
@@ -37,7 +37,7 @@ function Effects({ tier }: { tier: QualityTier }) {
   return (
     <EffectComposer multisampling={0}>
       <Bloom
-        intensity={0.95}
+        intensity={0.62}
         luminanceThreshold={0.14}
         luminanceSmoothing={0.35}
         mipmapBlur

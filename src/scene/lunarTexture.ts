@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 
-const WIDTH = 768
-const HEIGHT = 384
+const WIDTH = 2048
+const HEIGHT = 1024
 
 function hash2(x: number, y: number, seed: number) {
   const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123
@@ -148,11 +148,15 @@ export function createLunarTexture() {
 
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
-      const u = (x / WIDTH) * 12
-      const v = (y / HEIGHT) * 6
-      const base = fbm(u, v, 3, 5)
-      const detail = fbm(u * 6, v * 6, 11, 3)
-      const value = Math.min(1, Math.max(0, base * 0.72 + detail * 0.28))
+      const u = (x / WIDTH) * 20
+      const v = (y / HEIGHT) * 10
+      const base = fbm(u, v, 3, 4)
+      const detail = fbm(u * 14, v * 14, 11, 5)
+      const grain = fbm(u * 28, v * 28, 19, 3)
+      const value = Math.min(
+        1,
+        Math.max(0, base * 0.48 + detail * 0.38 + grain * 0.14),
+      )
       const byte = Math.round(110 + value * 105)
 
       const i = (y * WIDTH + x) * 4
@@ -164,32 +168,51 @@ export function createLunarTexture() {
   }
   ctx.putImageData(image, 0, 0)
 
-  // Large basins first, then the dense small pitting on top.
-  for (let i = 0; i < 26; i++) {
+  // Large basins first, then progressively finer pitting on top.
+  for (let i = 0; i < 10; i++) {
     stampCrater(
       ctx,
       hash2(i, 1, 5) * WIDTH,
       hash2(i, 2, 9) * HEIGHT,
-      14 + hash2(i, 3, 13) * 40,
+      4 + hash2(i, 3, 13) * 6,
     )
   }
-  for (let i = 0; i < 320; i++) {
+  for (let i = 0; i < 720; i++) {
     stampCrater(
       ctx,
       hash2(i, 4, 21) * WIDTH,
       hash2(i, 5, 27) * HEIGHT,
-      2 + hash2(i, 6, 33) * 9,
+      1.6 + hash2(i, 6, 33) * 2.4,
+    )
+  }
+  for (let i = 0; i < 1600; i++) {
+    stampCrater(
+      ctx,
+      hash2(i, 7, 41) * WIDTH,
+      hash2(i, 8, 47) * HEIGHT,
+      0.7 + hash2(i, 9, 53) * 1.5,
+    )
+  }
+  for (let i = 0; i < 3400; i++) {
+    stampCrater(
+      ctx,
+      hash2(i, 10, 59) * WIDTH,
+      hash2(i, 11, 61) * HEIGHT,
+      0.4 + hash2(i, 12, 67) * 0.8,
     )
   }
 
   const heightData = ctx.getImageData(0, 0, WIDTH, HEIGHT).data
-  const normalCanvas = heightToNormalMap(heightData, 1.6)
+  const normalCanvas = heightToNormalMap(heightData, 1.5)
 
   const normalMap = new THREE.CanvasTexture(normalCanvas)
   normalMap.wrapS = THREE.RepeatWrapping
   normalMap.wrapT = THREE.ClampToEdgeWrapping
   normalMap.colorSpace = THREE.NoColorSpace
-  normalMap.anisotropy = 4
+  normalMap.anisotropy = 8
+  normalMap.generateMipmaps = true
+  normalMap.minFilter = THREE.LinearMipmapLinearFilter
+  normalMap.magFilter = THREE.LinearFilter
 
   cached = normalMap
   return cached
