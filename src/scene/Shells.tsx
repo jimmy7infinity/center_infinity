@@ -15,13 +15,13 @@ import {
 } from './shellKeyframes'
 
 /**
- * Scales keyframe intensities (~0.7–0.85) for additive shells. Middle ground
- * between legibility and bloom headroom on overlapping rim crescents.
+ * Scales keyframe intensities (~0.7–0.85) for opaque directional shells.
+ * Slightly above 1.0 — NormalBlending no longer stacks energy on overlaps.
  */
-const INTENSITY_SCALE = 1.82
+const INTENSITY_SCALE = 2.0
 
 const POSITION_DAMP = 12
-const LIGHT_DAMP = 12
+const LIGHT_DAMP = 7.5
 const OPACITY_DAMP = 12
 
 const CAMERA_DAMP_XY = 2.4
@@ -66,6 +66,7 @@ function sampleCameraKeyframe(progress: number): CameraKeyframe {
 
 function Shell({ motion }: { motion: ShellMotion }) {
   const groupRef = useRef<THREE.Group>(null)
+  const meshRef = useRef<THREE.Mesh>(null)
   const hasInitialised = useRef(false)
   const normalMap = useMemo(() => createLunarTexture(), [])
 
@@ -182,20 +183,17 @@ function Shell({ motion }: { motion: ShellMotion }) {
 
     group.rotation.y += motion.spin * delta
 
+    const mesh = meshRef.current
+    if (!mesh) return
+
     // These spheres cover the whole viewport up close. Left visible at zero
     // opacity they would still shade every pixel, so cull them outright.
-    group.visible = uniforms.uOpacity.value > 0.004
+    mesh.visible = uniforms.uOpacity.value > 0.004
   })
 
   return (
-    <group ref={groupRef} visible={false}>
-      <mesh frustumCulled>
-        <sphereGeometry
-          args={[motion.radius, motion.segments, motion.segments]}
-        />
-        <meshBasicMaterial colorWrite={false} depthWrite depthTest />
-      </mesh>
-      <mesh material={material}>
+    <group ref={groupRef}>
+      <mesh ref={meshRef} material={material} visible={false} frustumCulled>
         <sphereGeometry
           args={[motion.radius, motion.segments, motion.segments]}
         />

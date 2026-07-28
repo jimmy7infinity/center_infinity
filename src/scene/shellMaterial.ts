@@ -86,13 +86,9 @@ varying vec3 vWorldTangent;
 varying vec3 vWorldBitangent;
 
 void main() {
-  vec3 L = normalize(uLightDir);
+  if (uOpacity < 0.004) discard;
 
-  // Cheap hemispherical cull before normal-map fetch (dark side is black under additive).
-  float ndotlGeom = dot(normalize(vWorldNormal), L);
-  float litGeom = smoothstep(-uTerminator, uTerminator, ndotlGeom);
-  float contribGeom = litGeom * uOpacity;
-  if (contribGeom < 0.004) discard;
+  vec3 L = normalize(uLightDir);
 
   vec3 mapNormal = texture2D(uNormalMap, vUv).xyz * 2.0 - 1.0;
   mapNormal.xy *= uNormalScale;
@@ -108,11 +104,8 @@ void main() {
   float lit = smoothstep(-uTerminator, uTerminator, ndotl);
   lit = pow(lit, 1.35);
 
-  float contrib = lit * uOpacity;
-  if (contrib < 0.004) discard;
-
   vec3 rgb = uTint * uLightColor * uIntensity * lit;
-  gl_FragColor = vec4(rgb * uOpacity, 1.0);
+  gl_FragColor = vec4(rgb, uOpacity);
 }
 `
 
@@ -135,9 +128,9 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
     transparent: true,
-    depthWrite: false,
-    depthTest: false,
-    blending: THREE.AdditiveBlending,
+    depthWrite: true,
+    depthTest: true,
+    blending: THREE.NormalBlending,
   })
 }
 

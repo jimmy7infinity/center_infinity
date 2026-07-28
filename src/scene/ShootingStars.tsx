@@ -2,13 +2,15 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-const POOL_SIZE = 4
+const POOL_SIZE = 6
+const METEOR_RENDER_ORDER = 100
 
 type Streak = {
   active: boolean
   progress: number
   duration: number
   streakLength: number
+  planeHeight: number
   start: THREE.Vector3
   end: THREE.Vector3
   travelDir: THREE.Vector3
@@ -20,6 +22,7 @@ function createStreak(): Streak {
     progress: 0,
     duration: 1,
     streakLength: 1,
+    planeHeight: 1,
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
     travelDir: new THREE.Vector3(),
@@ -36,9 +39,9 @@ function createStreakTexture(): THREE.CanvasTexture {
   }
 
   const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0)
-  gradient.addColorStop(0, 'rgba(180, 195, 220, 0)')
-  gradient.addColorStop(0.55, 'rgba(200, 215, 235, 0.25)')
-  gradient.addColorStop(0.85, 'rgba(230, 238, 255, 0.75)')
+  gradient.addColorStop(0, 'rgba(210, 220, 240, 0)')
+  gradient.addColorStop(0.45, 'rgba(230, 238, 255, 0.35)')
+  gradient.addColorStop(0.75, 'rgba(245, 248, 255, 0.85)')
   gradient.addColorStop(1, 'rgba(255, 255, 255, 1)')
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -73,7 +76,7 @@ function buildTangentBasis(
 
 function activateStreak(streak: Streak) {
   const anchor = randomUnitVector(new THREE.Vector3())
-  const radius = 30 + Math.random() * 30
+  const radius = 22 + Math.random() * 23
   anchor.multiplyScalar(radius)
 
   const normal = anchor.clone().normalize()
@@ -88,9 +91,10 @@ function activateStreak(streak: Streak) {
     .addScaledVector(bitangent, Math.sin(sweepAngle))
     .normalize()
 
-  const travelDistance = 14 + Math.random() * 16
-  streak.streakLength = 3.5 + Math.random() * 4.5
-  streak.duration = 0.32 + Math.random() * 0.48
+  const travelDistance = 20 + Math.random() * 20
+  streak.streakLength = 8 + Math.random() * 8
+  streak.planeHeight = 0.08 + Math.random() * 0.04
+  streak.duration = 0.45 + Math.random() * 0.45
   streak.start.copy(anchor).addScaledVector(streak.travelDir, -travelDistance * 0.5)
   streak.end.copy(anchor).addScaledVector(streak.travelDir, travelDistance * 0.5)
   streak.progress = 0
@@ -106,23 +110,24 @@ export function ShootingStars() {
   const streaksRef = useRef<Streak[]>(
     Array.from({ length: POOL_SIZE }, () => createStreak()),
   )
-  const spawnTimerRef = useRef(2 + Math.random() * 4)
+  const spawnTimerRef = useRef(0.6 + Math.random() * 0.6)
   const doubleSpawnTimerRef = useRef<number | null>(null)
   const scratchPosition = useMemo(() => new THREE.Vector3(), [])
   const scratchQuaternion = useMemo(() => new THREE.Quaternion(), [])
   const axisX = useMemo(() => new THREE.Vector3(1, 0, 0), [])
 
   const { geometry, materials } = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(1, 0.035, 1, 1)
+    const geo = new THREE.PlaneGeometry(1, 0.1, 1, 1)
     const streakTexture = createStreakTexture()
     const mats = Array.from({ length: POOL_SIZE }, () =>
       new THREE.MeshBasicMaterial({
         map: streakTexture,
         transparent: true,
-        opacity: 0.85,
+        opacity: 1,
         depthWrite: false,
+        depthTest: false,
         blending: THREE.AdditiveBlending,
-        color: '#d8e4f4',
+        color: '#f8faff',
         side: THREE.DoubleSide,
       }),
     )
@@ -130,18 +135,17 @@ export function ShootingStars() {
   }, [])
 
   const scheduleNextSpawn = () => {
-    let delay = 4 + Math.random() * 6
-
-    // Occasional longer quiet stretch.
-    if (Math.random() < 0.18) {
-      delay += 5 + Math.random() * 8
+    let delay: number
+    if (Math.random() < 0.08) {
+      delay = 2 + Math.random() * 2
+    } else {
+      delay = 1.2 + Math.random() * 1.6
     }
 
     spawnTimerRef.current = delay
 
-    // Rare double: back-to-back streak with a short offset.
-    if (Math.random() < 0.07) {
-      doubleSpawnTimerRef.current = 0.18 + Math.random() * 0.32
+    if (Math.random() < 0.2) {
+      doubleSpawnTimerRef.current = 0.12 + Math.random() * 0.28
     }
   }
 
@@ -199,11 +203,11 @@ export function ShootingStars() {
       mesh.visible = true
       mesh.position.copy(scratchPosition)
       mesh.quaternion.copy(scratchQuaternion)
-      mesh.scale.set(streak.streakLength, 1, 1)
+      mesh.scale.set(streak.streakLength, streak.planeHeight / 0.1, 1)
 
-      const fadeIn = Math.min(streak.progress * 10, 1)
-      const fadeOut = Math.min((1 - streak.progress) * 6, 1)
-      material.opacity = 0.82 * fadeIn * fadeOut
+      const fadeIn = Math.min(streak.progress * 8, 1)
+      const fadeOut = Math.min((1 - streak.progress) * 5, 1)
+      material.opacity = fadeIn * fadeOut
     }
   })
 
@@ -219,6 +223,7 @@ export function ShootingStars() {
           material={materials[index]}
           visible={false}
           frustumCulled={false}
+          renderOrder={METEOR_RENDER_ORDER}
         />
       ))}
     </group>
