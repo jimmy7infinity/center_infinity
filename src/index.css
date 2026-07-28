@@ -1,0 +1,65 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-void: #000000;
+  --color-ash: #0a0a0b;
+  --color-regolith: #8a8a8f;
+  --color-rim: #e8e8ea;
+  --color-glow: #b8c4d8;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-void);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-void);
+    color: var(--color-rim);
+    font-family: var(--font-sans);
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+
+  /* Lenis drives scroll; the document must stay tall but never show native bars. */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  ::selection {
+    background: var(--color-rim);
+    color: var(--color-void);
+  }
+}
+
+@utility text-balance-tight {
+  text-wrap: balance;
+}
+
+/* Fine-grained letterspacing for the eyebrow labels. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-regolith);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
