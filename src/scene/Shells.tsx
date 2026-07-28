@@ -36,13 +36,13 @@ type CameraKeyframe = {
   fov: number
 }
 
-/** Beat-timed dolly: logo hold, long approach, inward plunge, deep narrow. */
+/** Beat-timed dolly aligned to shell tableaux at 0 / 0.25 / 0.5 / 0.75 / 1.0. */
 const CAMERA_KEYFRAMES: CameraKeyframe[] = [
   { at: 0, x: 0, y: 0, z: 17, fov: 42 },
-  { at: 0.2, x: 0.35, y: 0.12, z: 16.4, fov: 43 },
-  { at: 0.45, x: 2.6, y: 1.35, z: 8.5, fov: 52 },
-  { at: 0.7, x: 4.2, y: -0.55, z: 0.8, fov: 46 },
-  { at: 1, x: 5.5, y: -1.35, z: -7.5, fov: 38 },
+  { at: 0.25, x: 0.2, y: 0.1, z: 15, fov: 44 },
+  { at: 0.5, x: 0.4, y: 0.2, z: 11, fov: 48 },
+  { at: 0.75, x: 0.8, y: -0.2, z: 5, fov: 46 },
+  { at: 1, x: 1.2, y: -0.4, z: -2, fov: 40 },
 ]
 
 function sampleCameraKeyframe(progress: number): CameraKeyframe {
@@ -212,7 +212,7 @@ function CameraRig() {
     const camera = state.camera
     const beat = sampleCameraKeyframe(progress)
 
-    const destX = beat.x + state.pointer.x * 0.35
+    const destX = beat.x + state.pointer.x * 0.2
     const destY = beat.y + state.pointer.y * 0.25
     const destZ = beat.z
 

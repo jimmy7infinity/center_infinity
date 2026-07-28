@@ -11,15 +11,20 @@ export function Starfield({ count = 900 }: { count?: number }) {
     const sizes = new Float32Array(count)
 
     for (let i = 0; i < count; i++) {
-      // Farther shell so depth feels deeper; keeps stars behind the moons.
-      const radius = 40 + Math.random() * 50
+      // Shell behind moons; material opts out of scene fog.
+      const radius = 35 + Math.random() * 40
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
 
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
       positions[i * 3 + 2] = radius * Math.cos(phi)
-      sizes[i] = 0.55 + Math.random() * 0.9
+
+      // Mostly small stars with a few brighter, larger ones.
+      sizes[i] =
+        Math.random() < 0.85
+          ? 0.5 + Math.random() * 0.5
+          : 1.2 + Math.random() * 1.3
     }
 
     const geo = new THREE.BufferGeometry()
@@ -30,11 +35,12 @@ export function Starfield({ count = 900 }: { count?: number }) {
 
   const material = useMemo(() => {
     const mat = new THREE.PointsMaterial({
-      color: '#c8d2e6',
-      size: 0.09,
+      color: '#eef3ff',
+      size: 0.32,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.55,
+      opacity: 1.0,
+      fog: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     })

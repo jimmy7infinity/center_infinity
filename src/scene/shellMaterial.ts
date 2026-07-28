@@ -104,8 +104,8 @@ void main() {
   float lit = smoothstep(-uTerminator, uTerminator, ndotl);
   lit = pow(lit, 1.35);
 
-  vec3 rgb = uTint * uLightColor * uIntensity * lit;
-  gl_FragColor = vec4(rgb, uOpacity);
+  vec3 rgb = uTint * uLightColor * uIntensity * lit * uOpacity;
+  gl_FragColor = vec4(rgb, 1.0);
 }
 `
 
@@ -127,7 +127,7 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     uniforms,
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
-    transparent: true,
+    transparent: false,
     depthWrite: true,
     depthTest: true,
     blending: THREE.NormalBlending,

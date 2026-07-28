@@ -67,12 +67,12 @@ export function Scene({ tier }: { tier: QualityTier }) {
         alpha: false,
         powerPreference: 'high-performance',
       }}
-      camera={{ position: [0, 0, 17], fov: 42, near: 0.1, far: 120 }}
+      camera={{ position: [0, 0, 17], fov: 42, near: 0.1, far: 160 }}
     >
       <color attach="background" args={['#000000']} />
-      <fog attach="fog" args={['#000000', 32, 105]} />
+      <fog attach="fog" args={['#000000', 62, 145]} />
       <Shells />
-      <Starfield count={tier === 'high' ? 1200 : 400} />
+      <Starfield count={tier === 'high' ? 1600 : 700} />
       <ShootingStars />
       <Effects tier={tier} />
     </Canvas>

@@ -36,6 +36,15 @@ export type ShellSample = {
 const DEG = Math.PI / 180
 
 /**
+ * Progress-0 depth layers. Camera at z ≈ 17 looks toward −Z; higher z is closer.
+ * B/D must sit in front of A/C: Z_B − r_B > Z_A + r_A (and same for D vs C).
+ */
+const Z_A = -4.0
+const Z_B = 5.5
+const Z_C = -3.2
+const Z_D = 4.0
+
+/**
  * Vertical span of the view frustum (world units) at distance `d` from the
  * camera. Matches fov 42° and camera z ≈ 17 looking at the origin region.
  */
@@ -45,8 +54,8 @@ function viewHeightAtDistance(d: number): number {
 
 /**
  * Map square-viewport centre fractions (0..1, y down) to world x/y at depth z.
- * Camera sits at z ≈ 17 on progress 0; shells sit on a tight z cluster so the
- * logo reads nearly flat rather than as a perspective S-curve.
+ * Camera sits at z ≈ 17 on progress 0; shells use staggered z so nested crescents
+ * remain visible under opaque NormalBlending.
  */
 function viewportToWorld(
   fx: number,
@@ -83,14 +92,14 @@ function lightFromBelow(tiltX = 0, tiltZ = -0.28): [number, number, number] {
 }
 
 /**
- * Four nested crescents. Progress 0 matches the logo composition: A and B
- * top-lit, C and D bottom-lit, vertically nested around a dark centre.
- * Shells share a tight z cluster so perspective does not drift into an S-curve.
+ * Four nested crescents. Progress 0 matches the logo composition with depth
+ * layering so B (in front of A) and D (in front of C) stay visible. Scroll
+ * beats at 0 / 0.25 / 0.5 / 0.75 / 1.0 form intentional, spaced tableaux.
  */
 export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'A',
-    radius: radiusFromDiameter(0.82, -2.25),
+    radius: radiusFromDiameter(0.82, Z_A),
     spin: -0.015,
     normalScale: 0.32,
     tint: '#858a94',
@@ -100,39 +109,39 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.46, -2.25),
+        position: viewportToWorld(0.5, 0.46, Z_A),
         lightDir: lightFromAbove(-0.1, -0.22),
         intensity: 0.76,
       },
       {
-        at: 0.2,
-        position: [0.15, 0.44, -2.35],
-        lightDir: lightFromAbove(0.95, -0.38),
-        intensity: 0.78,
+        at: 0.25,
+        position: viewportToWorld(0.3, 0.22, -5.0),
+        lightDir: lightFromAbove(-0.85, -0.32),
+        intensity: 0.8,
       },
       {
-        at: 0.45,
-        position: [2.4, 0.95, -0.9],
-        lightDir: lightFromAbove(-1.15, 0.08),
-        intensity: 0.86,
+        at: 0.5,
+        position: viewportToWorld(0.18, 0.22, -5.5),
+        lightDir: lightFromAbove(-0.55, -0.26),
+        intensity: 0.82,
       },
       {
-        at: 0.7,
-        position: [3.8, -0.35, 1.1],
-        lightDir: lightFromBelow(0.75, -0.48),
-        intensity: 0.76,
+        at: 0.75,
+        position: viewportToWorld(0.22, 0.22, -6.0),
+        lightDir: lightFromAbove(-0.7, -0.34),
+        intensity: 0.84,
       },
       {
         at: 1,
-        position: [4.6, -1.15, 2.4],
-        lightDir: lightFromAbove(0.95, -0.62),
-        intensity: 0.72,
+        position: viewportToWorld(0.22, 0.46, -5.0),
+        lightDir: lightFromAbove(-0.95, -0.38),
+        intensity: 0.8,
       },
     ],
   },
   {
     id: 'B',
-    radius: radiusFromDiameter(0.44, -2.25),
+    radius: radiusFromDiameter(0.5, Z_B),
     spin: -0.036,
     normalScale: 0.4,
     tint: '#9ca1ad',
@@ -142,39 +151,39 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.37, -2.25),
+        position: viewportToWorld(0.5, 0.37, Z_B),
         lightDir: lightFromAbove(0, -0.24),
-        intensity: 0.74,
+        intensity: 0.88,
       },
       {
-        at: 0.2,
-        position: [-0.35, 0.36, -2.4],
-        lightDir: lightFromAbove(-0.9, -0.32),
-        intensity: 0.76,
+        at: 0.25,
+        position: viewportToWorld(0.78, 0.22, 5.0),
+        lightDir: lightFromAbove(0.85, -0.32),
+        intensity: 0.82,
       },
       {
-        at: 0.45,
-        position: [-2.2, 1.65, -0.4],
-        lightDir: lightFromAbove(1.05, -0.05),
-        intensity: 0.86,
+        at: 0.5,
+        position: viewportToWorld(0.22, 0.78, 5.0),
+        lightDir: lightFromAbove(-0.45, -0.24),
+        intensity: 0.84,
       },
       {
-        at: 0.7,
-        position: [-3.5, 0.15, 1.4],
-        lightDir: lightFromAbove(-0.85, -0.58),
-        intensity: 0.78,
+        at: 0.75,
+        position: viewportToWorld(0.3, 0.3, 5.5),
+        lightDir: lightFromAbove(-0.35, -0.3),
+        intensity: 0.82,
       },
       {
         at: 1,
-        position: [-4.2, -0.95, 2.8],
-        lightDir: lightFromBelow(0.4, -0.35),
-        intensity: 0.74,
+        position: viewportToWorld(0.74, 0.22, 5.5),
+        lightDir: lightFromAbove(0.75, -0.3),
+        intensity: 0.8,
       },
     ],
   },
   {
     id: 'C',
-    radius: radiusFromDiameter(0.57, -2.25),
+    radius: radiusFromDiameter(0.57, Z_C),
     spin: 0.024,
     normalScale: 0.36,
     tint: '#90959f',
@@ -184,39 +193,39 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.66, -2.25),
+        position: viewportToWorld(0.5, 0.66, Z_C),
         lightDir: lightFromBelow(0.06, -0.22),
         intensity: 0.75,
       },
       {
-        at: 0.2,
-        position: [-0.2, 0.67, -2.38],
-        lightDir: lightFromBelow(-0.88, -0.34),
-        intensity: 0.77,
+        at: 0.25,
+        position: viewportToWorld(0.3, 0.78, -4.0),
+        lightDir: lightFromBelow(-0.85, -0.32),
+        intensity: 0.8,
       },
       {
-        at: 0.45,
-        position: [-1.8, -2.35, -0.2],
-        lightDir: lightFromBelow(1.1, 0.05),
-        intensity: 0.84,
+        at: 0.5,
+        position: viewportToWorld(0.78, 0.22, -4.5),
+        lightDir: lightFromBelow(0.55, -0.26),
+        intensity: 0.82,
       },
       {
-        at: 0.7,
-        position: [0.6, -3.1, 1.5],
-        lightDir: lightFromAbove(0.55, -0.45),
-        intensity: 0.74,
+        at: 0.75,
+        position: viewportToWorld(0.65, 0.65, -3.5),
+        lightDir: lightFromBelow(0.15, -0.28),
+        intensity: 0.8,
       },
       {
         at: 1,
-        position: [2.0, -1.85, 3.0],
-        lightDir: lightFromBelow(-0.7, -0.55),
-        intensity: 0.7,
+        position: viewportToWorld(0.78, 0.42, -3.5),
+        lightDir: lightFromBelow(0.65, -0.34),
+        intensity: 0.78,
       },
     ],
   },
   {
     id: 'D',
-    radius: radiusFromDiameter(0.22, -2.25),
+    radius: radiusFromDiameter(0.3, Z_D),
     spin: 0.05,
     normalScale: 0.38,
     tint: '#b4bcc8',
@@ -226,33 +235,33 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     keyframes: [
       {
         at: 0,
-        position: viewportToWorld(0.5, 0.69, -2.25),
+        position: viewportToWorld(0.5, 0.69, Z_D),
         lightDir: lightFromBelow(-0.1, -0.2),
-        intensity: 0.77,
+        intensity: 0.9,
       },
       {
-        at: 0.2,
-        position: [0.12, 0.7, -2.32],
-        lightDir: lightFromBelow(0.82, -0.36),
-        intensity: 0.78,
-      },
-      {
-        at: 0.45,
-        position: [1.4, -2.15, 0.35],
-        lightDir: lightFromBelow(-1.0, -0.02),
+        at: 0.25,
+        position: viewportToWorld(0.78, 0.78, 4.5),
+        lightDir: lightFromBelow(0.85, -0.32),
         intensity: 0.84,
       },
       {
-        at: 0.7,
-        position: [2.8, -0.65, 2.0],
-        lightDir: lightFromBelow(0.45, -0.52),
-        intensity: 0.76,
+        at: 0.5,
+        position: viewportToWorld(0.78, 0.78, 4.5),
+        lightDir: lightFromBelow(0.45, -0.24),
+        intensity: 0.84,
+      },
+      {
+        at: 0.75,
+        position: viewportToWorld(0.78, 0.78, 4.0),
+        lightDir: lightFromBelow(0.55, -0.3),
+        intensity: 0.82,
       },
       {
         at: 1,
-        position: [3.4, 0.35, 3.5],
-        lightDir: lightFromAbove(-0.85, -0.28),
-        intensity: 0.72,
+        position: viewportToWorld(0.78, 0.78, 4.0),
+        lightDir: lightFromBelow(0.35, -0.28),
+        intensity: 0.8,
       },
     ],
   },

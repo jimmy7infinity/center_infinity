@@ -5,9 +5,12 @@ import * as THREE from 'three'
 const POOL_SIZE = 6
 const METEOR_RENDER_ORDER = 100
 
+type StreakKind = 'fast' | 'slow'
+
 type Streak = {
   active: boolean
   progress: number
+  kind: StreakKind
   duration: number
   streakLength: number
   planeHeight: number
@@ -20,6 +23,7 @@ function createStreak(): Streak {
   return {
     active: false,
     progress: 0,
+    kind: 'fast',
     duration: 1,
     streakLength: 1,
     planeHeight: 1,
@@ -91,17 +95,29 @@ function activateStreak(streak: Streak) {
     .addScaledVector(bitangent, Math.sin(sweepAngle))
     .normalize()
 
-  const travelDistance = 20 + Math.random() * 20
-  streak.streakLength = 8 + Math.random() * 8
-  streak.planeHeight = 0.08 + Math.random() * 0.04
-  streak.duration = 0.45 + Math.random() * 0.45
+  const isSlowBolide = Math.random() < 0.25
+  streak.kind = isSlowBolide ? 'slow' : 'fast'
+
+  let travelDistance: number
+  if (isSlowBolide) {
+    streak.duration = 3.2 + Math.random() * 1.8
+    streak.streakLength = 12 + Math.random() * 8
+    streak.planeHeight = 0.1 + Math.random() * 0.06
+    travelDistance = 22 + Math.random() * 14
+  } else {
+    streak.duration = 1.4 + Math.random() * 1
+    streak.streakLength = 6 + Math.random() * 6
+    streak.planeHeight = 0.08 + Math.random() * 0.04
+    travelDistance = 14 + Math.random() * 14
+  }
+
   streak.start.copy(anchor).addScaledVector(streak.travelDir, -travelDistance * 0.5)
   streak.end.copy(anchor).addScaledVector(streak.travelDir, travelDistance * 0.5)
   streak.progress = 0
   streak.active = true
 }
 
-/** Sparse, fast meteors in the far shell — additive streaks beyond the moons. */
+/** Sparse meteors in the far shell — additive streaks beyond the moons. */
 export function ShootingStars() {
   const groupRef = useRef<THREE.Group>(null)
   const meshRefs = useRef<(THREE.Mesh | null)[]>(
@@ -110,7 +126,7 @@ export function ShootingStars() {
   const streaksRef = useRef<Streak[]>(
     Array.from({ length: POOL_SIZE }, () => createStreak()),
   )
-  const spawnTimerRef = useRef(0.6 + Math.random() * 0.6)
+  const spawnTimerRef = useRef(0.85 + Math.random() * 0.3)
   const doubleSpawnTimerRef = useRef<number | null>(null)
   const scratchPosition = useMemo(() => new THREE.Vector3(), [])
   const scratchQuaternion = useMemo(() => new THREE.Quaternion(), [])
@@ -135,14 +151,7 @@ export function ShootingStars() {
   }, [])
 
   const scheduleNextSpawn = () => {
-    let delay: number
-    if (Math.random() < 0.08) {
-      delay = 2 + Math.random() * 2
-    } else {
-      delay = 1.2 + Math.random() * 1.6
-    }
-
-    spawnTimerRef.current = delay
+    spawnTimerRef.current = 2 + Math.random() * 2
 
     if (Math.random() < 0.2) {
       doubleSpawnTimerRef.current = 0.12 + Math.random() * 0.28
@@ -207,7 +216,8 @@ export function ShootingStars() {
 
       const fadeIn = Math.min(streak.progress * 8, 1)
       const fadeOut = Math.min((1 - streak.progress) * 5, 1)
-      material.opacity = fadeIn * fadeOut
+      const opacityBoost = streak.kind === 'slow' ? 1.25 : 1
+      material.opacity = Math.min(fadeIn * fadeOut * opacityBoost, 1)
     }
   })
 
