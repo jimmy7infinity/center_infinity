@@ -35,13 +35,21 @@ const ANISOTROPY = 12
  * keyframe intensities calibrated no matter how this contrast is retuned.
  */
 const HIGHLAND_ALBEDO = 1.04
-const MARIA_ALBEDO = 0.63
+/** Maria / dark basalt — kept well below highlands so basins read as dark pools. */
+const MARIA_ALBEDO = 0.45
 const ICE_HIGHLAND_ALBEDO = 1.12
-const ICE_MARIA_ALBEDO = 0.78
+const ICE_MARIA_ALBEDO = 0.55
 const ALBEDO_ENCODE_RANGE = 2.5
 
-const EINK_MIN = 0.22
+/**
+ * E-ink window. Floor is low enough for crater floors and maria to read dark,
+ * ceiling soft so highlights stay chalky rather than blown-out white. A power
+ * curve on the normalised albedo (see albedoToCanvas) pulls more mass into
+ * the dark end without dropping the void back to pure black.
+ */
+const EINK_MIN = 0.14
 const EINK_MAX = 0.80
+const EINK_DARK_POWER = 1.35
 
 export type PlanetKind = 'moon' | 'jupiter' | 'venus' | 'ice'
 
@@ -286,7 +294,8 @@ function craterAlbedoProfile(dist: number, crater: CraterSpec) {
 
   if (t < crater.floorEnd) {
     const ft = t / crater.floorEnd
-    a -= (0.05 + crater.darkFloor) * (1 - ft * ft)
+    // Stronger ponded-melt darkening so floors read as dark pits under e-ink.
+    a -= (0.14 + crater.darkFloor * 1.55) * (1 - ft * ft)
   }
 
   return a
@@ -562,9 +571,10 @@ function buildJupiterFields() {
         sampleLayer(fineBand, bandCoord * 0.17, v * 1.8) * 0.38
 
       heights[row + x] = (bands - 0.5) * 0.16 + warp * 0.035
+      // Wider band contrast so dark belts sit well below bright zones.
       albedo[row + x] =
-        0.7 +
-        bands * 0.24 +
+        0.52 +
+        bands * 0.38 +
         (sampleLayer(fineBand, u * 52, v * 28) - 0.5) * 0.07
     }
   }
@@ -602,7 +612,7 @@ function buildVenusFields() {
       const twist = (sampleLayer(swirl, u * 3.2, v * 2.8) - 0.5) * 0.12
 
       heights[row + x] = (ridge - 0.5) * 0.09 + twist * 0.04
-      albedo[row + x] = 0.66 + ridge * 0.3 + twist * 0.08
+      albedo[row + x] = 0.48 + ridge * 0.42 + twist * 0.08
     }
   }
 
@@ -851,7 +861,9 @@ function albedoToCanvas(albedo: Float32Array, kind: PlanetKind): HTMLCanvasEleme
 
   for (let i = 0; i < albedo.length; i++) {
     const t = (normalized[i] - min) / span
-    const curved = EINK_MIN + t * (EINK_MAX - EINK_MIN)
+    // Power > 1 deepens maria and crater floors while keeping bright rims.
+    const shaped = Math.pow(t, EINK_DARK_POWER)
+    const curved = EINK_MIN + shaped * (EINK_MAX - EINK_MIN)
     const biased = applyEinkBias(kind, curved)
     const encoded = Math.round(
       Math.min(
