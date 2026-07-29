@@ -6,7 +6,7 @@ const DEG = Math.PI / 180
 const FOV_HALF = 21 * DEG
 
 /** Nominal camera depth that the `fx`/`fy` composition fractions are authored against. */
-const FRAME_REFERENCE_Z = 23
+const FRAME_REFERENCE_Z = 27
 
 /**
  * Scroll-driven pose for one shell at a given beat.
@@ -159,7 +159,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'A',
     surfaceKind: 'jupiter',
-    diameter: 0.74,
+    diameter: 0.70,
     referenceZ: -4,
     normalScale: 0.32,
     detailScale: 0.5,
@@ -187,7 +187,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'B',
     surfaceKind: 'moon',
-    diameter: 0.4,
+    diameter: 0.38,
     referenceZ: 5.5,
     normalScale: 0.4,
     detailScale: 0.42,
@@ -212,7 +212,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'C',
     surfaceKind: 'venus',
-    diameter: 0.51,
+    diameter: 0.48,
     referenceZ: -3.2,
     normalScale: 0.36,
     detailScale: 0.46,
@@ -237,7 +237,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'D',
     surfaceKind: 'ice',
-    diameter: 0.2,
+    diameter: 0.19,
     referenceZ: 4,
     normalScale: 0.38,
     detailScale: 0.38,
@@ -268,50 +268,50 @@ export const SHELL_MOTIONS: ShellMotion[] = [
  * straight ahead on a wide lens.
  */
 export const CAMERA_KEYFRAMES: CameraKeyframe[] = [
-  { at: beatIndex('hero'), position: [0, 0, 23], target: [0, 0, -2], fov: 42 },
+  { at: beatIndex('hero'), position: [0, 0, 27], target: [0, 0, -2], fov: 42 },
   {
     at: beatIndex('services'),
-    position: [-1.5, 0.4, 21.2],
+    position: [-1.5, 0.4, 25.2],
     target: [1.6, -0.3, -4],
     fov: 43,
   },
   {
     at: beatIndex('work-1'),
-    position: [1.6, -0.5, 20.4],
+    position: [1.6, -0.5, 24.4],
     target: [-1.8, 0.4, -5],
     fov: 44,
   },
   {
     at: beatIndex('work-2'),
-    position: [-2, 0.7, 19.8],
+    position: [-2, 0.7, 23.8],
     target: [2, -0.6, -6],
     fov: 45,
   },
   {
     at: beatIndex('work-3'),
-    position: [2.2, 0.1, 19.2],
+    position: [2.2, 0.1, 23.2],
     target: [-1.6, 0.7, -6],
     fov: 45,
   },
   {
     at: beatIndex('work-4'),
-    position: [-1.4, -0.8, 18.8],
+    position: [-1.4, -0.8, 22.8],
     target: [1.4, 0.9, -5],
     fov: 44,
   },
   {
     at: beatIndex('work-5'),
-    position: [0.9, 1, 19.6],
+    position: [0.9, 1, 23.6],
     target: [-0.9, -0.9, -6],
     fov: 43,
   },
   {
     at: beatIndex('contact'),
-    position: [-1.8, 0.1, 18],
+    position: [-1.8, 0.1, 22],
     target: [2.4, 0.1, -4],
     fov: 43,
   },
-  { at: beatIndex('warp'), position: [0, 0, 11], target: [0, 0, -24], fov: 56 },
+  { at: beatIndex('warp'), position: [0, 0, 12.5], target: [0, 0, -24], fov: 56 },
 ]
 
 function bracket<T extends { at: number }>(

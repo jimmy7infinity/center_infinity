@@ -16,7 +16,7 @@ export function App() {
     setTier(detectQuality())
   }, [])
 
-  useSmoothScroll(tier === 'high' || tier === 'medium')
+  useSmoothScroll(tier === 'high' || tier === 'medium', tier !== null)
 
   return (
     <>

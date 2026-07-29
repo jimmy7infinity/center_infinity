@@ -110,9 +110,10 @@ function refreshWarp() {
   // what hides the cut back to the top, since the text is the only part of the
   // frame that would otherwise pop.
   if (veilEnabled) {
+    const scrollVeil = smoothstep(0.15, 0.85, scrollState.warp)
     document.documentElement.style.setProperty(
       '--warp-veil',
-      smoothstep(0.45, 0.95, scrollState.warp).toFixed(3),
+      Math.max(scrollVeil, introWarp).toFixed(3),
     )
   }
 }
@@ -184,8 +185,15 @@ function resetIntroWarp() {
   introElapsed = 0
 }
 
-export function useSmoothScroll(smooth: boolean) {
+/**
+ * @param smooth - Lenis + warp intro when the WebGL scene is active
+ * @param ready - false while quality tier is still detecting; keeps the default
+ *   CSS veil (copy hidden) so text does not flash before the intro warp
+ */
+export function useSmoothScroll(smooth: boolean, ready = true) {
   useEffect(() => {
+    if (!ready) return
+
     measureAnchors()
 
     // Fonts and lazily-sized content shift the anchors after first paint.
@@ -207,6 +215,9 @@ export function useSmoothScroll(smooth: boolean) {
         window.removeEventListener('scroll', onScroll)
       }
     }
+
+    startIntroWarp()
+    refreshWarp()
 
     const lenis = new Lenis({
       lerp: 0.075,
@@ -250,5 +261,5 @@ export function useSmoothScroll(smooth: boolean) {
       veilEnabled = false
       document.documentElement.style.setProperty('--warp-veil', '0')
     }
-  }, [smooth])
+  }, [smooth, ready])
 }

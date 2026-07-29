@@ -68,6 +68,7 @@ function Shell({ motion }: { motion: ShellMotion }) {
       lightDir: new THREE.Vector3(...first.light),
       intensity: first.intensity * INTENSITY_SCALE,
       opacity: 0,
+      ambient: 0.06,
     })
   }, [motion, surface])
 

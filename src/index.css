@@ -5,8 +5,8 @@
   --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-void: #000000;
-  --color-ash: #0a0a0b;
+  --color-void: #121214;
+  --color-ash: #18181b;
   --color-regolith: #8a8a8f;
   --color-rim: #e8e8ea;
   --color-glow: #b8c4d8;
@@ -14,6 +14,7 @@
 
 @layer base {
   html {
+    --warp-veil: 1;
     background-color: var(--color-void);
     color-scheme: dark;
   }

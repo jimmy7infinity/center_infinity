@@ -40,8 +40,8 @@ const ICE_HIGHLAND_ALBEDO = 1.12
 const ICE_MARIA_ALBEDO = 0.78
 const ALBEDO_ENCODE_RANGE = 2.5
 
-const EINK_MIN = 0.12
-const EINK_MAX = 0.82
+const EINK_MIN = 0.22
+const EINK_MAX = 0.80
 
 export type PlanetKind = 'moon' | 'jupiter' | 'venus' | 'ice'
 
