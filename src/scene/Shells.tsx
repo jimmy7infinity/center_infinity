@@ -9,13 +9,16 @@ import {
 } from './shellMaterial'
 import {
   SHELL_MOTIONS,
+  resolveShellRadius,
+  sampleCameraKeyframe,
   sampleShellKeyframe,
+  type CameraPose,
   type ShellMotion,
   type ShellSample,
 } from './shellKeyframes'
 
 /**
- * Scales keyframe intensities (~0.7–0.85) for opaque directional shells.
+ * Scales keyframe intensities (~0.7–0.9) for opaque directional shells.
  * Slightly above 1.0 — NormalBlending no longer stacks energy on overlaps.
  */
 const INTENSITY_SCALE = 2.0
@@ -27,72 +30,39 @@ const OPACITY_DAMP = 12
 const CAMERA_DAMP_XY = 2.4
 const CAMERA_DAMP_Z = 2.8
 const CAMERA_DAMP_FOV = 2.2
-
-type CameraKeyframe = {
-  at: number
-  x: number
-  y: number
-  z: number
-  fov: number
-}
-
-/** Beat-timed dolly aligned to shell tableaux at 0 / 0.25 / 0.5 / 0.75 / 1.0. */
-const CAMERA_KEYFRAMES: CameraKeyframe[] = [
-  { at: 0, x: 0, y: 0, z: 17, fov: 42 },
-  { at: 0.25, x: 0.2, y: 0.1, z: 15, fov: 44 },
-  { at: 0.5, x: 0.5, y: 0.15, z: 12.5, fov: 46 },
-  { at: 0.75, x: 0.7, y: -0.1, z: 11.5, fov: 45 },
-  { at: 1, x: 0.9, y: -0.25, z: 10.5, fov: 44 },
-]
-
-function sampleCameraKeyframe(progress: number): CameraKeyframe {
-  const t = THREE.MathUtils.clamp(progress, 0, 1)
-  let i = 0
-  while (i < CAMERA_KEYFRAMES.length - 1 && CAMERA_KEYFRAMES[i + 1].at < t) {
-    i += 1
-  }
-  const a = CAMERA_KEYFRAMES[i]
-  const b = CAMERA_KEYFRAMES[Math.min(i + 1, CAMERA_KEYFRAMES.length - 1)]
-  const span = b.at - a.at
-  const u = span > 0 ? (t - a.at) / span : 0
-  return {
-    at: t,
-    x: THREE.MathUtils.lerp(a.x, b.x, u),
-    y: THREE.MathUtils.lerp(a.y, b.y, u),
-    z: THREE.MathUtils.lerp(a.z, b.z, u),
-    fov: THREE.MathUtils.lerp(a.fov, b.fov, u),
-  }
-}
+const CAMERA_DAMP_TARGET = 2.1
 
 function Shell({ motion }: { motion: ShellMotion }) {
   const groupRef = useRef<THREE.Group>(null)
   const spinRef = useRef<THREE.Group>(null)
   const meshRef = useRef<THREE.Mesh>(null)
   const hasInitialised = useRef(false)
-  const spinAxisScratch = useRef(new THREE.Vector3())
   const normalMap = useMemo(() => createLunarTexture(), [])
+
+  const spinAxis = useMemo(
+    () => new THREE.Vector3(...motion.spinAxis).normalize(),
+    [motion],
+  )
 
   const sampleOut = useMemo<ShellSample>(
     () => ({
       position: new THREE.Vector3(),
       lightDir: new THREE.Vector3(),
       intensity: 0,
-      spinAxis: new THREE.Vector3(0, 1, 0),
-      spinRate: 0,
     }),
     [],
   )
 
   const material = useMemo(() => {
-    const k0 = motion.keyframes[0]
+    const first = motion.keyframes[0]
     return createShellMaterial({
       tint: motion.tint,
       normalMap,
       normalScale: motion.normalScale,
       lightColor: motion.lightColor,
       terminator: motion.terminator,
-      lightDir: new THREE.Vector3(...k0.lightDir),
-      intensity: k0.intensity * INTENSITY_SCALE,
+      lightDir: new THREE.Vector3(...first.light),
+      intensity: first.intensity * INTENSITY_SCALE,
       opacity: 0,
     })
   }, [motion, normalMap])
@@ -110,20 +80,24 @@ function Shell({ motion }: { motion: ShellMotion }) {
 
   useFrame((state, delta) => {
     const group = groupRef.current
-    if (!group) return
+    const mesh = meshRef.current
+    if (!group || !mesh) return
 
-    const progress = scrollState.progress
-    sampleShellKeyframe(motion.keyframes, progress, sampleOut)
+    const aspect = Math.max(0.2, state.size.width / state.size.height)
+    // Recomputed every frame rather than on a resize event so the geometry stays
+    // a unit sphere and reframing costs nothing but a multiply.
+    const radius = resolveShellRadius(motion, aspect)
+    mesh.scale.setScalar(radius)
+
+    sampleShellKeyframe(motion.keyframes, scrollState.beat, aspect, sampleOut)
 
     const intensityTarget = sampleOut.intensity * INTENSITY_SCALE
     const distanceToSurface =
-      state.camera.position.distanceTo(sampleOut.position) - motion.radius
-    // Fully opaque outside the sphere; fade only after the camera crosses the surface.
-    const opacityTarget = THREE.MathUtils.smoothstep(
-      distanceToSurface,
-      -2.0,
-      0.0,
-    )
+      state.camera.position.distanceTo(sampleOut.position) - radius
+    // Opaque outside the sphere; fades only once the camera crosses the surface.
+    let opacityTarget = THREE.MathUtils.smoothstep(distanceToSurface, -2, 0)
+    // Clears out at peak warp so the jump is streaks rather than clutter.
+    opacityTarget *= 1 - THREE.MathUtils.smoothstep(scrollState.warp, 0.55, 1)
 
     if (!hasInitialised.current) {
       group.position.copy(sampleOut.position)
@@ -187,16 +161,9 @@ function Shell({ motion }: { motion: ShellMotion }) {
     }
 
     const spinGroup = spinRef.current
-    if (spinGroup && sampleOut.spinRate !== 0) {
-      spinAxisScratch.current.copy(sampleOut.spinAxis).normalize()
-      spinGroup.rotateOnAxis(
-        spinAxisScratch.current,
-        sampleOut.spinRate * delta,
-      )
+    if (spinGroup && motion.spinRate !== 0) {
+      spinGroup.rotateOnAxis(spinAxis, motion.spinRate * delta)
     }
-
-    const mesh = meshRef.current
-    if (!mesh) return
 
     // These spheres cover the whole viewport up close. Left visible at zero
     // opacity they would still shade every pixel, so cull them outright.
@@ -207,34 +174,42 @@ function Shell({ motion }: { motion: ShellMotion }) {
     <group ref={groupRef}>
       <group ref={spinRef}>
         <mesh ref={meshRef} material={material} visible={false} frustumCulled>
-          <sphereGeometry
-            args={[motion.radius, motion.segments, motion.segments]}
-          />
+          <sphereGeometry args={[1, motion.segments, motion.segments]} />
         </mesh>
       </group>
     </group>
   )
 }
 
-/** Scroll-driven dolly; camera stays outside shells in late beats. */
+/** Beat-driven dolly plus a damped look target, so the move reads as a turn. */
 function CameraRig() {
   const fovRef = useRef(42)
   const hasInitialised = useRef(false)
 
-  useFrame((state, delta) => {
-    const progress = scrollState.progress
-    const camera = state.camera
-    const beat = sampleCameraKeyframe(progress)
+  const pose = useMemo<CameraPose>(
+    () => ({
+      position: new THREE.Vector3(),
+      target: new THREE.Vector3(),
+      fov: 42,
+    }),
+    [],
+  )
+  const lookTarget = useMemo(() => new THREE.Vector3(0, 0, -2), [])
 
-    const destX = beat.x + state.pointer.x * 0.2
-    const destY = beat.y + state.pointer.y * 0.25
-    const destZ = beat.z
+  useFrame((state, delta) => {
+    const camera = state.camera
+    sampleCameraKeyframe(scrollState.beat, pose)
+
+    const destX = pose.position.x + state.pointer.x * 0.2
+    const destY = pose.position.y + state.pointer.y * 0.25
+    const destZ = pose.position.z
 
     if (!hasInitialised.current) {
       camera.position.set(destX, destY, destZ)
-      fovRef.current = beat.fov
+      lookTarget.copy(pose.target)
+      fovRef.current = pose.fov
       if (camera instanceof THREE.PerspectiveCamera) {
-        camera.fov = beat.fov
+        camera.fov = pose.fov
         camera.updateProjectionMatrix()
       }
       hasInitialised.current = true
@@ -258,9 +233,28 @@ function CameraRig() {
         delta,
       )
 
+      lookTarget.x = THREE.MathUtils.damp(
+        lookTarget.x,
+        pose.target.x,
+        CAMERA_DAMP_TARGET,
+        delta,
+      )
+      lookTarget.y = THREE.MathUtils.damp(
+        lookTarget.y,
+        pose.target.y,
+        CAMERA_DAMP_TARGET,
+        delta,
+      )
+      lookTarget.z = THREE.MathUtils.damp(
+        lookTarget.z,
+        pose.target.z,
+        CAMERA_DAMP_TARGET,
+        delta,
+      )
+
       fovRef.current = THREE.MathUtils.damp(
         fovRef.current,
-        beat.fov,
+        pose.fov,
         CAMERA_DAMP_FOV,
         delta,
       )
@@ -270,7 +264,7 @@ function CameraRig() {
       }
     }
 
-    camera.lookAt(0, 0, -2)
+    camera.lookAt(lookTarget)
   })
 
   return null

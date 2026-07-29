@@ -36,16 +36,31 @@ function smoothstep(edge0: number, edge1: number, x: number) {
   return t * t * (3 - 2 * t)
 }
 
-function valueNoise(x: number, y: number, seed: number) {
+function wrapIndex(i: number, period: number) {
+  return ((i % period) + period) % period
+}
+
+/**
+ * Value noise that repeats exactly every `periodX` lattice cells.
+ *
+ * This map is wrapped around a sphere, so any mismatch between u=1 and u=0 is a
+ * genuine cliff in the height field. The Sobel pass below reports that cliff
+ * faithfully, which is what produced the hard vertical seam that looked like two
+ * hemispheres stitched together.
+ */
+function valueNoise(x: number, y: number, seed: number, periodX: number) {
   const xi = Math.floor(x)
   const yi = Math.floor(y)
   const xf = smoothstep(0, 1, x - xi)
   const yf = smoothstep(0, 1, y - yi)
 
-  const a = hash2(xi, yi, seed)
-  const b = hash2(xi + 1, yi, seed)
-  const c = hash2(xi, yi + 1, seed)
-  const d = hash2(xi + 1, yi + 1, seed)
+  const x0 = wrapIndex(xi, periodX)
+  const x1 = wrapIndex(xi + 1, periodX)
+
+  const a = hash2(x0, yi, seed)
+  const b = hash2(x1, yi, seed)
+  const c = hash2(x0, yi + 1, seed)
+  const d = hash2(x1, yi + 1, seed)
 
   return (
     a * (1 - xf) * (1 - yf) +
@@ -55,24 +70,40 @@ function valueNoise(x: number, y: number, seed: number) {
   )
 }
 
-function fbm(x: number, y: number, seed: number, octaves: number) {
+/**
+ * Octaves double in frequency — exactly 2, not 2.05 — so every octave's period
+ * stays a whole number of lattice cells and the summed field is still seamless.
+ */
+function fbm(
+  x: number,
+  y: number,
+  seed: number,
+  octaves: number,
+  periodX: number,
+) {
   let value = 0
   let amplitude = 0.5
   let frequency = 1
   let total = 0
   for (let i = 0; i < octaves; i++) {
-    value += valueNoise(x * frequency, y * frequency, seed + i) * amplitude
+    value +=
+      valueNoise(x * frequency, y * frequency, seed + i, periodX * frequency) *
+      amplitude
     total += amplitude
     amplitude *= 0.5
-    frequency *= 2.05
+    frequency *= 2
   }
   return value / total
 }
 
+/**
+ * `periodU` must be a whole number of noise cells across the full 360° of
+ * longitude — it is both the horizontal scale and the wrap period.
+ */
 function buildNoiseLayer(
   layerWidth: number,
   layerHeight: number,
-  scaleU: number,
+  periodU: number,
   scaleV: number,
   offsetU: number,
   offsetV: number,
@@ -83,22 +114,23 @@ function buildNoiseLayer(
   for (let y = 0; y < layerHeight; y++) {
     const v = (y / layerHeight) * scaleV + offsetV
     for (let x = 0; x < layerWidth; x++) {
-      const u = (x / layerWidth) * scaleU + offsetU
-      data[y * layerWidth + x] = fbm(u, v, seed, octaves)
+      const u = (x / layerWidth) * periodU + offsetU
+      data[y * layerWidth + x] = fbm(u, v, seed, octaves, periodU)
     }
   }
   return { data, width: layerWidth, height: layerHeight }
 }
 
+/** Wraps in x (longitude is cyclic) and clamps in y (the poles are not). */
 function sampleLayer(layer: NoiseLayer, x: number, y: number) {
-  const fx = (x / WIDTH) * (layer.width - 1)
+  const fx = (x / WIDTH) * layer.width
   const fy = (y / HEIGHT) * (layer.height - 1)
-  const x0 = Math.floor(fx)
-  const y0 = Math.floor(fy)
-  const x1 = Math.min(layer.width - 1, x0 + 1)
+  const x0 = wrapIndex(Math.floor(fx), layer.width)
+  const x1 = wrapIndex(x0 + 1, layer.width)
+  const y0 = Math.max(0, Math.min(layer.height - 1, Math.floor(fy)))
   const y1 = Math.min(layer.height - 1, y0 + 1)
-  const tx = fx - x0
-  const ty = fy - y0
+  const tx = fx - Math.floor(fx)
+  const ty = Math.max(0, fy - y0)
 
   const i00 = y0 * layer.width + x0
   const i10 = y0 * layer.width + x1
@@ -282,61 +314,25 @@ let noiseLayersCache: {
 function getNoiseLayers() {
   if (noiseLayersCache) return noiseLayersCache
 
-  const mariaMask = buildNoiseLayer(
-    WIDTH / 4,
-    HEIGHT / 4,
-    18 * 0.35,
-    9 * 0.35,
-    2.1,
-    1.3,
-    7,
-    4,
-  )
-  const continental = buildNoiseLayer(
-    WIDTH / 4,
-    HEIGHT / 4,
-    18 * 0.75,
-    9 * 0.75,
-    0,
-    0,
-    3,
-    4,
-  )
-  const mariaDetail = buildNoiseLayer(
-    WIDTH / 4,
-    HEIGHT / 4,
-    18 * 1.6,
-    9 * 1.6,
-    0,
-    0,
-    17,
-    3,
-  )
+  const mariaMask = buildNoiseLayer(WIDTH / 4, HEIGHT / 4, 6, 3.15, 2.1, 1.3, 7, 4)
+  const continental = buildNoiseLayer(WIDTH / 4, HEIGHT / 4, 14, 6.75, 0, 0, 3, 4)
+  const mariaDetail = buildNoiseLayer(WIDTH / 4, HEIGHT / 4, 28, 14.4, 0, 0, 17, 3)
   const highlandDetail = buildNoiseLayer(
     WIDTH / 4,
     HEIGHT / 4,
-    18 * 3.4,
-    9 * 3.4,
+    61,
+    30.6,
     0,
     0,
     11,
     4,
   )
-  const regolith = buildNoiseLayer(
-    WIDTH / 8,
-    HEIGHT / 8,
-    18 * 22,
-    9 * 22,
-    0,
-    0,
-    19,
-    3,
-  )
+  const regolith = buildNoiseLayer(WIDTH / 8, HEIGHT / 8, 396, 198, 0, 0, 19, 3)
   const microGrain = buildNoiseLayer(
     WIDTH / 16,
     HEIGHT / 16,
-    18 * 52,
-    9 * 52,
+    936,
+    468,
     0,
     0,
     29,
@@ -345,8 +341,8 @@ function getNoiseLayers() {
   const sparkleGrain = buildNoiseLayer(
     WIDTH / 16,
     HEIGHT / 16,
-    18 * 78,
-    9 * 78,
+    1404,
+    702,
     0.37,
     0.19,
     37,
@@ -424,14 +420,14 @@ function sampleLayerBilinear(
   u: number,
   v: number,
 ): number {
-  const fx = u * (layer.width - 1)
+  const fx = u * layer.width
   const fy = v * (layer.height - 1)
-  const x0 = Math.floor(fx)
-  const y0 = Math.floor(fy)
-  const x1 = Math.min(layer.width - 1, x0 + 1)
+  const x0 = wrapIndex(Math.floor(fx), layer.width)
+  const x1 = wrapIndex(x0 + 1, layer.width)
+  const y0 = Math.max(0, Math.min(layer.height - 1, Math.floor(fy)))
   const y1 = Math.min(layer.height - 1, y0 + 1)
-  const tx = fx - x0
-  const ty = fy - y0
+  const tx = fx - Math.floor(fx)
+  const ty = Math.max(0, fy - y0)
 
   const i00 = y0 * layer.width + x0
   const i10 = y0 * layer.width + x1
@@ -452,7 +448,7 @@ function fillBaseHeight(heights: Float32Array) {
   for (let y = 0; y < lowHeight; y++) {
     const v = y / (lowHeight - 1)
     for (let x = 0; x < lowWidth; x++) {
-      const u = x / (lowWidth - 1)
+      const u = x / lowWidth
       const px = u * WIDTH
       const py = v * HEIGHT
       const mariaMask = smoothstep(
@@ -471,7 +467,7 @@ function fillBaseHeight(heights: Float32Array) {
   for (let y = 0; y < HEIGHT; y++) {
     const v = y / (HEIGHT - 1)
     for (let x = 0; x < WIDTH; x++) {
-      const u = x / (WIDTH - 1)
+      const u = x / WIDTH
       heights[y * WIDTH + x] = sampleLayerBilinear(
         { data: lowRes, width: lowWidth, height: lowHeight },
         u,
@@ -484,19 +480,23 @@ function fillBaseHeight(heights: Float32Array) {
 function stampCraterHeight(heights: Float32Array, crater: CraterSpec) {
   const outer = crater.radius * (crater.ejecta > 0.008 ? 1.52 : 1.22)
   const outerSq = outer * outer
-  const x0 = Math.max(0, Math.floor(crater.x - outer))
-  const x1 = Math.min(WIDTH - 1, Math.ceil(crater.x + outer))
+  const xStart = Math.floor(crater.x - outer)
+  const xEnd = Math.ceil(crater.x + outer)
   const y0 = Math.max(0, Math.floor(crater.y - outer))
   const y1 = Math.min(HEIGHT - 1, Math.ceil(crater.y + outer))
 
   for (let y = y0; y <= y1; y++) {
     const dy = y - crater.y
     const row = y * WIDTH
-    for (let x = x0; x <= x1; x++) {
-      const dx = wrappedDelta(x, crater.x, WIDTH)
+    // Unclamped in x so craters straddling the seam land on both sides of it.
+    for (let xi = xStart; xi <= xEnd; xi++) {
+      const dx = wrappedDelta(xi, crater.x, WIDTH)
       const distSq = dx * dx + dy * dy
       if (distSq > outerSq) continue
-      heights[row + x] += craterProfile(Math.sqrt(distSq), crater)
+      heights[row + wrapIndex(xi, WIDTH)] += craterProfile(
+        Math.sqrt(distSq),
+        crater,
+      )
     }
   }
 }

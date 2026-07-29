@@ -16,7 +16,7 @@ import { dprFor, type QualityTier } from '../lib/quality'
 
 function Effects({ tier }: { tier: QualityTier }) {
   const aberrationOffset = useMemo(
-    () => new THREE.Vector2(0.0007, 0.0011),
+    () => new THREE.Vector2(0.0004, 0.0007),
     [],
   )
 
@@ -70,9 +70,8 @@ export function Scene({ tier }: { tier: QualityTier }) {
       camera={{ position: [0, 0, 17], fov: 42, near: 0.1, far: 160 }}
     >
       <color attach="background" args={['#000000']} />
-      <fog attach="fog" args={['#000000', 62, 145]} />
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[5, 8, 12]} intensity={0.7} />
+      {/* No scene lights: every surface carries its own light direction so the
+          four shells can be lit independently, the way the logo is. */}
       <Shells />
       <Starfield count={tier === 'high' ? 1600 : 700} />
       <DriftingRocks />

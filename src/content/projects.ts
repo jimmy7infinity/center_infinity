@@ -6,6 +6,11 @@ export type Project = {
   stack: string[]
   status: string
   href?: string
+  /**
+   * Reserved slot rather than shipped work. Rendered with a visibly provisional
+   * treatment so it can't be mistaken for a real case study before it's filled.
+   */
+  placeholder?: boolean
 }
 
 export const projects: Project[] = [
@@ -35,6 +40,26 @@ export const projects: Project[] = [
       'A Telegram MiniApp ecosystem for long-term rentals on Koh Phangan: a booking app for tenants, a manager app for owners, and a FastAPI service handling viewings, contracts, and split payments.',
     stack: ['Next.js', 'FastAPI', 'MongoDB', 'Stripe', 'Cloudinary'],
     status: 'Demo',
+  },
+  {
+    index: '04',
+    name: 'Project four',
+    tagline: 'Replace with the next case study',
+    description:
+      'Reserved slot. Swap in the project, the one-line promise, what it actually does, and the stack — the scene beat for this section already exists.',
+    stack: ['TBC'],
+    status: 'Placeholder',
+    placeholder: true,
+  },
+  {
+    index: '05',
+    name: 'Project five',
+    tagline: 'Replace with the next case study',
+    description:
+      'Reserved slot. Swap in the project, the one-line promise, what it actually does, and the stack — the scene beat for this section already exists.',
+    stack: ['TBC'],
+    status: 'Placeholder',
+    placeholder: true,
   },
 ]
 

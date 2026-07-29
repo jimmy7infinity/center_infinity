@@ -1,32 +1,44 @@
 import * as THREE from 'three'
+import { beatIndex, type BeatId } from '../lib/beats'
+
+const DEG = Math.PI / 180
+const FOV_HALF = 21 * DEG
+
+/** Nominal camera depth that the `fx`/`fy` composition fractions are authored against. */
+const FRAME_REFERENCE_Z = 17
 
 /**
- * Scroll-driven pose for one shell at a given progress point.
+ * Scroll-driven pose for one shell at a given beat.
  *
- * `lightDir` is the world-space direction **toward** the light source (same
- * convention as Lambert: `dot(N, lightDir)` is positive on the lit hemisphere).
- * Consumers normalise it; values here are pre-normalised for readability.
+ * `fx`/`fy` are composition fractions (0..1, y down) rather than world
+ * coordinates: they are resolved against the live aspect ratio every frame, so
+ * the same table frames correctly on a phone and an ultrawide.
  *
- * `spinAxis` is a local tumble axis (need not be unit length; sampled output
- * is normalised). `spinRate` is radians per second.
+ * `light` is the world-space direction **toward** the light source, matching the
+ * Lambert convention where `dot(N, light)` is positive on the lit hemisphere.
  */
 export type ShellKeyframe = {
   at: number
-  position: [number, number, number]
-  lightDir: [number, number, number]
+  fx: number
+  fy: number
+  z: number
+  light: [number, number, number]
   intensity: number
-  spinAxis: [number, number, number]
-  spinRate: number
 }
 
 export type ShellMotion = {
   id: 'A' | 'B' | 'C' | 'D'
-  radius: number
+  /** Diameter as a fraction of the smaller viewport axis at `referenceZ`. */
+  diameter: number
+  referenceZ: number
   normalScale: number
   tint: string
   segments: number
   lightColor: string
   terminator: number
+  spinAxis: [number, number, number]
+  /** Radians per second. */
+  spinRate: number
   keyframes: ShellKeyframe[]
 }
 
@@ -35,355 +47,331 @@ export type ShellSample = {
   position: THREE.Vector3
   lightDir: THREE.Vector3
   intensity: number
-  spinAxis: THREE.Vector3
-  spinRate: number
 }
 
-const DEG = Math.PI / 180
+export type CameraKeyframe = {
+  at: number
+  position: [number, number, number]
+  /** World point the camera looks at — this is what makes the move read as a turn. */
+  target: [number, number, number]
+  fov: number
+}
 
-/**
- * Progress-0 depth layers. Camera at z ≈ 17 looks toward −Z; higher z is closer.
- * B/D must sit in front of A/C: Z_B − r_B > Z_A + r_A (and same for D vs C).
- */
-const Z_A = -4.0
-const Z_B = 5.5
-const Z_C = -3.2
-const Z_D = 4.0
+export type CameraPose = {
+  position: THREE.Vector3
+  target: THREE.Vector3
+  fov: number
+}
 
-/**
- * Vertical span of the view frustum (world units) at distance `d` from the
- * camera. Matches fov 42° and camera z ≈ 17 looking at the origin region.
- */
-function viewHeightAtDistance(d: number): number {
-  return 2 * d * Math.tan(21 * DEG)
+/** Vertical world span of the frustum at depth `z`, from the reference camera. */
+function viewHeightAt(z: number): number {
+  return 2 * (FRAME_REFERENCE_Z - z) * Math.tan(FOV_HALF)
 }
 
 /**
- * Map square-viewport centre fractions (0..1, y down) to world x/y at depth z.
- * Camera sits at z ≈ 17 on progress 0; shells use staggered z so nested crescents
- * remain visible under opaque NormalBlending.
+ * The composition is laid out in units of the *smaller* viewport axis.
+ *
+ * On landscape that is the height, which reproduces the desktop framing these
+ * numbers were tuned against. On portrait it becomes the width, so the whole
+ * cluster scales down to fit instead of overflowing the sides — which is what
+ * used to bury the copy under an oversized moon on phones.
  */
-function viewportToWorld(
+function compositionUnit(z: number, aspect: number): number {
+  const viewHeight = viewHeightAt(z)
+  return Math.min(viewHeight * aspect, viewHeight)
+}
+
+/**
+ * On portrait the composition is only as wide as the viewport, so it lands in the
+ * vertical middle — right where the copy goes. Lifting it by a fixed fraction of
+ * the frame height splits the screen instead: scene above, copy below.
+ */
+const PORTRAIT_LIFT_FRAMES = 0.18
+
+function resolveFrame(
   fx: number,
   fy: number,
   z: number,
-): [number, number, number] {
-  const d = 17 - z
-  const viewH = viewHeightAtDistance(d)
-  const viewW = viewH
-  const x = (fx - 0.5) * viewW
-  const y = (0.5 - fy) * viewH
-  return [x, y, z]
+  aspect: number,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  const unit = compositionUnit(z, aspect)
+  // `unit / aspect` is the frame height at this depth when aspect < 1, so the
+  // lift is the same share of the screen at every depth.
+  const lift = aspect < 1 ? PORTRAIT_LIFT_FRAMES * (unit / aspect) : 0
+  return out.set((fx - 0.5) * unit, (0.5 - fy) * unit + lift, z)
 }
 
-/** World-space radius so a shell projects to `diameterFrac` of the viewport. */
-function radiusFromDiameter(diameterFrac: number, z: number): number {
-  const d = 17 - z
-  return diameterFrac * d * Math.tan(21 * DEG)
+export function resolveShellRadius(
+  motion: ShellMotion,
+  aspect: number,
+): number {
+  return (motion.diameter * compositionUnit(motion.referenceZ, aspect)) / 2
 }
 
 /**
- * Normalised direction toward a light above or below the shell.
- * Negative `tiltZ` places the source behind the shells (−Z) so the camera at +Z
- * sees rim crescents instead of front-face discs.
+ * Light directions. A negative `tiltZ` puts the source behind the shells so the
+ * camera at +Z sees a rim crescent rather than a flat, fully-lit face.
  */
-function lightFromAbove(tiltX = 0, tiltZ = -0.6): [number, number, number] {
+function above(tiltX = 0, tiltZ = -0.6): [number, number, number] {
   const v = new THREE.Vector3(tiltX, 1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
 
-function lightFromBelow(tiltX = 0, tiltZ = -0.6): [number, number, number] {
+function below(tiltX = 0, tiltZ = -0.6): [number, number, number] {
   const v = new THREE.Vector3(tiltX, -1, tiltZ).normalize()
   return [v.x, v.y, v.z]
 }
 
+function from(x: number, y: number, z: number): [number, number, number] {
+  const v = new THREE.Vector3(x, y, z).normalize()
+  return [v.x, v.y, v.z]
+}
+
+function kf(
+  beat: BeatId,
+  fx: number,
+  fy: number,
+  z: number,
+  light: [number, number, number],
+  intensity: number,
+): ShellKeyframe {
+  return { at: beatIndex(beat), fx, fy, z, light, intensity }
+}
+
 /**
- * Four nested crescents. Progress 0 matches the logo composition with depth
- * layering so B (in front of A) and D (in front of C) stay visible. Scroll
- * beats at 0 / 0.25 / 0.5 / 0.75 / 1.0 form intentional, spaced tableaux.
+ * Four nested crescents. The `hero` beat is the logo composition; every later
+ * beat is a deliberately distinct tableau, and because beats are pinned to
+ * sections each one lands exactly when its section is centred.
+ *
+ * Shells are ordered back-to-front by `z` at the hero beat so the nested
+ * crescents stay visible under opaque blending: B sits in front of A, D in
+ * front of C.
  */
 export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'A',
-    radius: radiusFromDiameter(0.82, Z_A),
+    diameter: 0.82,
+    referenceZ: -4,
     normalScale: 0.32,
     tint: '#858a94',
     segments: 96,
     lightColor: '#e8edf8',
     terminator: 0.12,
+    spinAxis: [0.12, 1, 0.05],
+    spinRate: -0.016,
     keyframes: [
-      {
-        at: 0,
-        position: viewportToWorld(0.5, 0.42, Z_A),
-        lightDir: lightFromAbove(-0.12, -0.65),
-        intensity: 0.76,
-        spinAxis: [0, 1, 0],
-        spinRate: -0.015,
-      },
-      {
-        at: 0.25,
-        position: viewportToWorld(0.3, 0.22, -5.0),
-        lightDir: lightFromAbove(-0.85, -0.32),
-        intensity: 0.8,
-        spinAxis: [0.3, 0.9, 0.15],
-        spinRate: -0.016,
-      },
-      {
-        at: 0.5,
-        position: viewportToWorld(0.18, 0.22, -5.5),
-        lightDir: lightFromAbove(-0.55, -0.26),
-        intensity: 0.82,
-        spinAxis: [0.55, 0.7, 0.25],
-        spinRate: -0.018,
-      },
-      {
-        at: 0.75,
-        position: viewportToWorld(0.22, 0.22, -6.0),
-        lightDir: lightFromAbove(-0.7, -0.34),
-        intensity: 0.84,
-        spinAxis: [0.75, 0.5, 0.2],
-        spinRate: -0.02,
-      },
-      {
-        at: 1,
-        position: viewportToWorld(0.22, 0.46, -5.0),
-        lightDir: lightFromAbove(-0.95, -0.38),
-        intensity: 0.8,
-        spinAxis: [0.9, 0.25, 0.1],
-        spinRate: -0.022,
-      },
+      kf('hero', 0.5, 0.42, -4, above(-0.12, -0.65), 0.76),
+      kf('services', 0.85, 0.34, -12, above(-0.55, -0.7), 0.78),
+      kf('work-1', 0.82, 0.68, -14, above(-0.7, -0.65), 0.8),
+      kf('work-2', 0.2, 0.72, -16, below(-0.8, -0.6), 0.7),
+      kf('work-3', 0.72, 0.22, -18, above(-0.45, -0.7), 0.82),
+      kf('work-4', 0.85, 0.5, -13, above(-0.8, -0.6), 0.82),
+      kf('work-5', 0.55, 0.3, -20, above(-0.3, -0.75), 0.84),
+      // The one dominant close moon. Lit hard from the right so the mass that
+      // overlaps the left-hand copy is unlit, keeping the text legible.
+      kf('contact', 0.86, 0.52, -8, from(0.9, 0.35, -0.45), 0.9),
+      // Sweeps past the camera during the jump and fades on surface crossing.
+      kf('warp', 0.2, 0.55, 20, from(0.6, 0.4, -0.5), 0.9),
     ],
   },
   {
     id: 'B',
-    radius: radiusFromDiameter(0.44, Z_B),
+    diameter: 0.44,
+    referenceZ: 5.5,
     normalScale: 0.4,
     tint: '#9ca1ad',
     segments: 96,
     lightColor: '#e8edf8',
     terminator: 0.12,
+    spinAxis: [0.15, 0.75, 0.65],
+    spinRate: -0.038,
     keyframes: [
-      {
-        at: 0,
-        position: viewportToWorld(0.5, 0.31, Z_B),
-        lightDir: lightFromAbove(0.05, -0.6),
-        intensity: 0.88,
-        spinAxis: [0.15, 0.75, 0.65],
-        spinRate: -0.036,
-      },
-      {
-        at: 0.25,
-        position: viewportToWorld(0.78, 0.22, 5.0),
-        lightDir: lightFromAbove(0.85, -0.32),
-        intensity: 0.82,
-        spinAxis: [0.35, 0.55, 0.75],
-        spinRate: -0.038,
-      },
-      {
-        at: 0.5,
-        position: viewportToWorld(0.22, 0.78, 5.0),
-        lightDir: lightFromAbove(-0.45, -0.24),
-        intensity: 0.84,
-        spinAxis: [0.65, 0.25, 0.7],
-        spinRate: -0.04,
-      },
-      {
-        at: 0.75,
-        position: viewportToWorld(0.3, 0.3, 5.5),
-        lightDir: lightFromAbove(-0.35, -0.3),
-        intensity: 0.82,
-        spinAxis: [0.8, 0.2, 0.55],
-        spinRate: -0.042,
-      },
-      {
-        at: 1,
-        position: viewportToWorld(0.62, 0.48, 5.5),
-        lightDir: lightFromAbove(0.55, -0.3),
-        intensity: 0.8,
-        spinAxis: [0.85, 0.15, 0.45],
-        spinRate: -0.044,
-      },
+      kf('hero', 0.5, 0.31, 5.5, above(0.05, -0.6), 0.88),
+      kf('services', 0.86, 0.22, 4, above(0.75, -0.6), 0.84),
+      kf('work-1', 0.66, 0.3, 7, above(0.5, -0.65), 0.9),
+      kf('work-2', 0.84, 0.24, 8, above(0.85, -0.6), 0.94),
+      kf('work-3', 0.78, 0.76, 5, below(0.6, -0.6), 0.88),
+      kf('work-4', 0.68, 0.26, 2, above(0.35, -0.65), 0.86),
+      kf('work-5', 0.32, 0.7, 6, below(-0.7, -0.6), 0.84),
+      kf('contact', 0.22, 0.16, -6, above(-0.4, -0.7), 0.8),
+      kf('warp', 0.72, 0.4, 18, above(0.4, -0.6), 0.9),
     ],
   },
   {
     id: 'C',
-    radius: radiusFromDiameter(0.57, Z_C),
+    diameter: 0.57,
+    referenceZ: -3.2,
     normalScale: 0.36,
     tint: '#90959f',
     segments: 96,
     lightColor: '#d8e0ec',
     terminator: 0.1,
+    spinAxis: [0.85, 0.15, 0.1],
+    spinRate: 0.026,
     keyframes: [
-      {
-        at: 0,
-        position: viewportToWorld(0.51, 0.71, Z_C),
-        lightDir: lightFromBelow(0.08, -0.68),
-        intensity: 0.75,
-        spinAxis: [0.85, 0.15, 0.1],
-        spinRate: 0.024,
-      },
-      {
-        at: 0.25,
-        position: viewportToWorld(0.3, 0.78, -4.0),
-        lightDir: lightFromBelow(-0.85, -0.32),
-        intensity: 0.8,
-        spinAxis: [0.55, 0.45, 0.2],
-        spinRate: 0.026,
-      },
-      {
-        at: 0.5,
-        position: viewportToWorld(0.78, 0.22, -4.5),
-        lightDir: lightFromBelow(0.55, -0.26),
-        intensity: 0.82,
-        spinAxis: [0.35, 0.65, 0.3],
-        spinRate: 0.028,
-      },
-      {
-        at: 0.75,
-        position: viewportToWorld(0.65, 0.65, -3.5),
-        lightDir: lightFromBelow(0.15, -0.28),
-        intensity: 0.8,
-        spinAxis: [0.2, 0.8, 0.35],
-        spinRate: 0.03,
-      },
-      {
-        at: 1,
-        position: viewportToWorld(0.78, 0.42, -3.5),
-        lightDir: lightFromBelow(0.65, -0.34),
-        intensity: 0.78,
-        spinAxis: [0.1, 0.9, 0.3],
-        spinRate: 0.032,
-      },
+      kf('hero', 0.51, 0.62, -3.2, below(0.08, -0.68), 0.75),
+      kf('services', 0.26, 0.82, -9, below(-0.75, -0.65), 0.78),
+      kf('work-1', 0.76, 0.6, -4.5, below(0.5, -0.6), 0.82),
+      kf('work-2', 0.72, 0.78, -8, below(0.65, -0.6), 0.84),
+      kf('work-3', 0.88, 0.45, -1, below(0.85, -0.6), 0.86),
+      kf('work-4', 0.28, 0.78, -7, below(-0.6, -0.65), 0.82),
+      kf('work-5', 0.8, 0.68, -10, below(0.5, -0.65), 0.8),
+      kf('contact', 0.34, 0.9, -14, below(-0.2, -0.7), 0.7),
+      kf('warp', 0.3, 0.7, 16, below(-0.3, -0.6), 0.85),
     ],
   },
   {
     id: 'D',
-    radius: radiusFromDiameter(0.22, Z_D),
+    diameter: 0.22,
+    referenceZ: 4,
     normalScale: 0.38,
     tint: '#b4bcc8',
     segments: 96,
     lightColor: '#d8e0ec',
     terminator: 0.1,
+    spinAxis: [0.45, 0.45, 0.75],
+    spinRate: 0.052,
     keyframes: [
-      {
-        at: 0,
-        position: viewportToWorld(0.5, 0.74, Z_D),
-        lightDir: lightFromBelow(-0.12, -0.58),
-        intensity: 0.9,
-        spinAxis: [0.45, 0.45, 0.75],
-        spinRate: 0.05,
-      },
-      {
-        at: 0.25,
-        position: viewportToWorld(0.78, 0.78, 4.5),
-        lightDir: lightFromBelow(0.85, -0.32),
-        intensity: 0.84,
-        spinAxis: [0.55, 0.35, 0.75],
-        spinRate: 0.052,
-      },
-      {
-        at: 0.5,
-        position: viewportToWorld(0.78, 0.78, 4.5),
-        lightDir: lightFromBelow(0.45, -0.24),
-        intensity: 0.84,
-        spinAxis: [0.7, 0.45, 0.55],
-        spinRate: 0.054,
-      },
-      {
-        at: 0.75,
-        position: viewportToWorld(0.78, 0.78, 4.0),
-        lightDir: lightFromBelow(0.55, -0.3),
-        intensity: 0.82,
-        spinAxis: [0.45, 0.55, 0.65],
-        spinRate: 0.056,
-      },
-      {
-        at: 1,
-        position: viewportToWorld(0.62, 0.58, 4.0),
-        lightDir: lightFromBelow(0.45, -0.28),
-        intensity: 0.8,
-        spinAxis: [0.35, 0.65, 0.6],
-        spinRate: 0.058,
-      },
+      kf('hero', 0.5, 0.65, 4, below(-0.12, -0.58), 0.9),
+      kf('services', 0.8, 0.72, 5, below(0.7, -0.6), 0.86),
+      kf('work-1', 0.9, 0.18, 4.5, above(0.85, -0.6), 0.92),
+      kf('work-2', 0.28, 0.24, 6, above(-0.6, -0.6), 0.9),
+      kf('work-3', 0.18, 0.74, 5.5, below(-0.75, -0.6), 0.88),
+      kf('work-4', 0.88, 0.72, 6.5, below(0.8, -0.6), 0.94),
+      kf('work-5', 0.64, 0.42, 2, above(0.3, -0.65), 0.9),
+      kf('contact', 0.6, 0.14, -12, above(0.5, -0.6), 0.86),
+      kf('warp', 0.5, 0.3, 14, above(0.2, -0.6), 0.9),
     ],
   },
 ]
 
+/**
+ * The camera translates modestly but re-aims a lot: swinging the look target
+ * across the scene is what sells the sense of turning and sweeps new regions of
+ * the starfield through frame. The warp beat breaks the pattern and charges
+ * straight ahead on a wide lens.
+ */
+export const CAMERA_KEYFRAMES: CameraKeyframe[] = [
+  { at: beatIndex('hero'), position: [0, 0, 17], target: [0, 0, -2], fov: 42 },
+  {
+    at: beatIndex('services'),
+    position: [-1.5, 0.4, 16.2],
+    target: [1.6, -0.3, -4],
+    fov: 43,
+  },
+  {
+    at: beatIndex('work-1'),
+    position: [1.6, -0.5, 15.4],
+    target: [-1.8, 0.4, -5],
+    fov: 44,
+  },
+  {
+    at: beatIndex('work-2'),
+    position: [-2, 0.7, 14.8],
+    target: [2, -0.6, -6],
+    fov: 45,
+  },
+  {
+    at: beatIndex('work-3'),
+    position: [2.2, 0.1, 14.2],
+    target: [-1.6, 0.7, -6],
+    fov: 45,
+  },
+  {
+    at: beatIndex('work-4'),
+    position: [-1.4, -0.8, 13.8],
+    target: [1.4, 0.9, -5],
+    fov: 44,
+  },
+  {
+    at: beatIndex('work-5'),
+    position: [0.9, 1, 14.6],
+    target: [-0.9, -0.9, -6],
+    fov: 43,
+  },
+  {
+    at: beatIndex('contact'),
+    position: [-1.8, 0.1, 13],
+    target: [2.4, 0.1, -4],
+    fov: 43,
+  },
+  { at: beatIndex('warp'), position: [0, 0, 8], target: [0, 0, -24], fov: 56 },
+]
+
+function bracket<T extends { at: number }>(
+  frames: T[],
+  t: number,
+): { a: T; b: T; u: number } {
+  const last = frames.length - 1
+  let i = 0
+  while (i < last && frames[i + 1].at < t) i += 1
+  const a = frames[i]
+  const b = frames[Math.min(i + 1, last)]
+  const span = b.at - a.at
+  return { a, b, u: span > 0 ? (t - a.at) / span : 0 }
+}
+
 const _lerpDir = new THREE.Vector3()
-const _lerpSpinAxis = new THREE.Vector3()
 
 /**
- * Interpolate shell pose at `progress` and write into `out`.
+ * Interpolate a shell pose at `beat` and write into `out`.
  *
- * Allocation strategy: no heap allocations — writes into pre-existing
- * Vector3 instances on `out`. Callers should keep one `ShellSample` (with
- * reused Vector3s) per shell and pass it every frame.
+ * No heap allocations: writes into the Vector3 instances already on `out`, so
+ * callers should keep one `ShellSample` per shell and pass it every frame.
  */
 export function sampleShellKeyframe(
   keyframes: ShellKeyframe[],
-  progress: number,
+  beat: number,
+  aspect: number,
   out: ShellSample,
 ): void {
   if (keyframes.length === 0) {
     out.position.set(0, 0, 0)
     out.lightDir.set(0, 1, 0)
     out.intensity = 0
-    out.spinAxis.set(0, 1, 0)
-    out.spinRate = 0
-    return
-  }
-
-  if (keyframes.length === 1) {
-    const k = keyframes[0]
-    out.position.set(k.position[0], k.position[1], k.position[2])
-    out.lightDir.set(k.lightDir[0], k.lightDir[1], k.lightDir[2]).normalize()
-    out.intensity = k.intensity
-    out.spinAxis
-      .set(k.spinAxis[0], k.spinAxis[1], k.spinAxis[2])
-      .normalize()
-    out.spinRate = k.spinRate
     return
   }
 
   const first = keyframes[0]
   const last = keyframes[keyframes.length - 1]
-  const t = THREE.MathUtils.clamp(progress, first.at, last.at)
+  const t = THREE.MathUtils.clamp(beat, first.at, last.at)
+  const { a, b, u } = bracket(keyframes, t)
 
-  let i = 0
-  while (i < keyframes.length - 1 && keyframes[i + 1].at < t) {
-    i += 1
-  }
+  resolveFrame(
+    THREE.MathUtils.lerp(a.fx, b.fx, u),
+    THREE.MathUtils.lerp(a.fy, b.fy, u),
+    THREE.MathUtils.lerp(a.z, b.z, u),
+    aspect,
+    out.position,
+  )
 
-  const a = keyframes[i]
-  const b = keyframes[Math.min(i + 1, keyframes.length - 1)]
-  const span = b.at - a.at
-  const u = span > 0 ? (t - a.at) / span : 0
+  _lerpDir
+    .set(
+      THREE.MathUtils.lerp(a.light[0], b.light[0], u),
+      THREE.MathUtils.lerp(a.light[1], b.light[1], u),
+      THREE.MathUtils.lerp(a.light[2], b.light[2], u),
+    )
+    .normalize()
+  out.lightDir.copy(_lerpDir)
+
+  out.intensity = THREE.MathUtils.lerp(a.intensity, b.intensity, u)
+}
+
+export function sampleCameraKeyframe(beat: number, out: CameraPose): void {
+  const last = CAMERA_KEYFRAMES[CAMERA_KEYFRAMES.length - 1]
+  const t = THREE.MathUtils.clamp(beat, CAMERA_KEYFRAMES[0].at, last.at)
+  const { a, b, u } = bracket(CAMERA_KEYFRAMES, t)
 
   out.position.set(
     THREE.MathUtils.lerp(a.position[0], b.position[0], u),
     THREE.MathUtils.lerp(a.position[1], b.position[1], u),
     THREE.MathUtils.lerp(a.position[2], b.position[2], u),
   )
-
-  _lerpDir
-    .set(
-      THREE.MathUtils.lerp(a.lightDir[0], b.lightDir[0], u),
-      THREE.MathUtils.lerp(a.lightDir[1], b.lightDir[1], u),
-      THREE.MathUtils.lerp(a.lightDir[2], b.lightDir[2], u),
-    )
-    .normalize()
-  out.lightDir.copy(_lerpDir)
-
-  out.intensity = THREE.MathUtils.lerp(a.intensity, b.intensity, u)
-
-  _lerpSpinAxis
-    .set(
-      THREE.MathUtils.lerp(a.spinAxis[0], b.spinAxis[0], u),
-      THREE.MathUtils.lerp(a.spinAxis[1], b.spinAxis[1], u),
-      THREE.MathUtils.lerp(a.spinAxis[2], b.spinAxis[2], u),
-    )
-    .normalize()
-  out.spinAxis.copy(_lerpSpinAxis)
-
-  out.spinRate = THREE.MathUtils.lerp(a.spinRate, b.spinRate, u)
+  out.target.set(
+    THREE.MathUtils.lerp(a.target[0], b.target[0], u),
+    THREE.MathUtils.lerp(a.target[1], b.target[1], u),
+    THREE.MathUtils.lerp(a.target[2], b.target[2], u),
+  )
+  out.fov = THREE.MathUtils.lerp(a.fov, b.fov, u)
 }

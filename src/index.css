@@ -45,6 +45,11 @@
   text-wrap: balance;
 }
 
+/* Driven per-frame from the scroll loop; see refreshWarp(). */
+@utility warp-veil {
+  opacity: calc(1 - var(--warp-veil, 0));
+}
+
 /* Fine-grained letterspacing for the eyebrow labels. */
 @utility label {
   font-family: var(--font-mono);

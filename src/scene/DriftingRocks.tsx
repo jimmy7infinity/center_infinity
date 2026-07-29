@@ -1,11 +1,22 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { createLunarTexture } from './lunarTexture'
+import { scrollState } from '../lib/scroll'
+import {
+  createShellMaterial,
+  getShellMaterialUniforms,
+} from './shellMaterial'
 
-const POOL_SIZE = 2
+const POOL_SIZE = 7
 const CAMERA_Z = 17
 const FOV_HALF_RAD = (42 * Math.PI) / 180 / 2
+
+/**
+ * Debris reads as one sun-lit field, so unlike the shells (which each carry
+ * their own light to match the logo) every rock shares this direction. Tilted
+ * back on −Z so the camera sees a rim crescent rather than a flat front face.
+ */
+const SUN_DIR = new THREE.Vector3(-0.55, 0.86, -0.5).normalize()
 
 type Rock = {
   active: boolean
@@ -18,6 +29,13 @@ type Rock = {
   baseRotation: THREE.Euler
 }
 
+type Lobe = {
+  axis: THREE.Vector3
+  amp: number
+  freq: number
+  phase: number
+}
+
 function seededRandom(seed: number): () => number {
   let state = seed
   return () => {
@@ -26,27 +44,107 @@ function seededRandom(seed: number): () => number {
   }
 }
 
-function createRockGeometry(seed: number): THREE.BufferGeometry {
-  const rng = seededRandom(seed)
-  const useDodeca = rng() > 0.5
-  const geo = useDodeca
-    ? new THREE.DodecahedronGeometry(1, 0)
-    : new THREE.IcosahedronGeometry(1, 0)
-  const pos = geo.attributes.position
+/**
+ * Area-weighted normals averaged across coincident vertices.
+ *
+ * Polyhedron geometry is non-indexed, so `computeVertexNormals` gives every
+ * triangle a single flat normal — which is what made these read as folded paper
+ * rather than rock. Averaging by position instead yields a smooth surface with
+ * no shading break where the faces meet.
+ */
+function applySmoothNormals(geometry: THREE.BufferGeometry) {
+  const position = geometry.attributes.position
+  const sums = new Map<string, THREE.Vector3>()
+  const keys: string[] = new Array(position.count)
 
-  for (let i = 0; i < pos.count; i++) {
-    const jitter = 0.68 + rng() * 0.58
-    pos.setXYZ(
-      i,
-      pos.getX(i) * jitter,
-      pos.getY(i) * jitter,
-      pos.getZ(i) * jitter,
-    )
+  const a = new THREE.Vector3()
+  const b = new THREE.Vector3()
+  const c = new THREE.Vector3()
+  const ab = new THREE.Vector3()
+  const ac = new THREE.Vector3()
+  const faceNormal = new THREE.Vector3()
+
+  for (let i = 0; i < position.count; i++) {
+    keys[i] = `${position.getX(i).toFixed(4)}|${position.getY(i).toFixed(4)}|${position.getZ(i).toFixed(4)}`
   }
 
-  pos.needsUpdate = true
-  geo.computeVertexNormals()
-  return geo
+  for (let f = 0; f + 2 < position.count; f += 3) {
+    a.fromBufferAttribute(position, f)
+    b.fromBufferAttribute(position, f + 1)
+    c.fromBufferAttribute(position, f + 2)
+    ab.subVectors(b, a)
+    ac.subVectors(c, a)
+    // Left unnormalised so larger triangles carry proportionally more weight.
+    faceNormal.crossVectors(ab, ac)
+
+    for (let k = 0; k < 3; k++) {
+      const key = keys[f + k]
+      const existing = sums.get(key)
+      if (existing) {
+        existing.add(faceNormal)
+      } else {
+        sums.set(key, faceNormal.clone())
+      }
+    }
+  }
+
+  const normals = new Float32Array(position.count * 3)
+  const scratch = new THREE.Vector3()
+  for (let i = 0; i < position.count; i++) {
+    const sum = sums.get(keys[i])
+    scratch.copy(sum ?? new THREE.Vector3(0, 1, 0)).normalize()
+    normals[i * 3] = scratch.x
+    normals[i * 3 + 1] = scratch.y
+    normals[i * 3 + 2] = scratch.z
+  }
+
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+}
+
+/** Radial displacement: overlapping smooth lobes carve an irregular boulder. */
+function rockRadius(direction: THREE.Vector3, lobes: Lobe[]): number {
+  let radius = 1
+  for (const lobe of lobes) {
+    radius +=
+      lobe.amp * Math.cos(direction.dot(lobe.axis) * lobe.freq + lobe.phase)
+  }
+  return radius
+}
+
+function createRockGeometry(seed: number): THREE.BufferGeometry {
+  const rng = seededRandom(seed)
+  const geometry = new THREE.IcosahedronGeometry(1, 3)
+
+  const lobes: Lobe[] = Array.from({ length: 4 }, () => ({
+    axis: new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1)
+      .normalize(),
+    // Amplitudes total well under 1 so the radius can never invert.
+    amp: 0.05 + rng() * 0.09,
+    freq: 1.4 + rng() * 2.8,
+    phase: rng() * Math.PI * 2,
+  }))
+
+  const position = geometry.attributes.position
+  const direction = new THREE.Vector3()
+  for (let i = 0; i < position.count; i++) {
+    direction.fromBufferAttribute(position, i).normalize()
+    const radius = rockRadius(direction, lobes)
+    position.setXYZ(
+      i,
+      direction.x * radius,
+      direction.y * radius,
+      direction.z * radius,
+    )
+  }
+  position.needsUpdate = true
+
+  // Asteroids are elongated. Baked into the geometry rather than applied as a
+  // mesh scale so the normals below stay correct.
+  geometry.scale(1, 0.72 + rng() * 0.2, 0.82 + rng() * 0.24)
+  applySmoothNormals(geometry)
+  geometry.computeBoundingSphere()
+
+  return geometry
 }
 
 function createRock(): Rock {
@@ -62,84 +160,59 @@ function createRock(): Rock {
   }
 }
 
-function viewSizeAtDepth(z: number): { width: number; height: number } {
-  const d = CAMERA_Z - z
-  const height = 2 * d * Math.tan(FOV_HALF_RAD)
-  return { width: height, height }
-}
-
 function viewportToWorld(
   fx: number,
   fy: number,
   z: number,
+  aspect: number,
   out: THREE.Vector3,
 ): THREE.Vector3 {
-  const { width, height } = viewSizeAtDepth(z)
-  return out.set((fx - 0.5) * width, (0.5 - fy) * height, z)
+  const distance = CAMERA_Z - z
+  const viewHeight = 2 * distance * Math.tan(FOV_HALF_RAD)
+  const viewWidth = viewHeight * aspect
+  return out.set((fx - 0.5) * viewWidth, (0.5 - fy) * viewHeight, z)
 }
 
-/** Bias spawn toward upper band and side edges of the viewport at mid depth. */
-function pickSkySpawnPoint(out: THREE.Vector3): THREE.Vector3 {
-  const edgeRoll = Math.random()
-  let fx: number
-  let fy: number
+/** Biased to the upper band and the side margins, away from the copy. */
+function pickSpawnAnchor(aspect: number, out: THREE.Vector3): THREE.Vector3 {
+  const fromSide = Math.random() < 0.55
+  const fx = fromSide
+    ? Math.random() < 0.5
+      ? -0.12 + Math.random() * 0.28
+      : 0.84 + Math.random() * 0.28
+    : 0.1 + Math.random() * 0.8
+  const fy = fromSide ? 0.05 + Math.random() * 0.6 : -0.08 + Math.random() * 0.35
 
-  if (edgeRoll < 0.35) {
-    fx = 0.12 + Math.random() * 0.76
-    fy = 0.04 + Math.random() * 0.22
-  } else if (edgeRoll < 0.7) {
-    fx = Math.random() < 0.5 ? Math.random() * 0.2 : 0.8 + Math.random() * 0.2
-    fy = 0.08 + Math.random() * 0.5
-  } else {
-    fx = Math.random() < 0.5 ? Math.random() * 0.24 : 0.76 + Math.random() * 0.24
-    fy = 0.04 + Math.random() * 0.18
-  }
-
-  const distFromCamera = 11 + Math.random() * 13
-  const z = CAMERA_Z - distFromCamera
-  return viewportToWorld(fx, fy, z, out)
+  const distanceFromCamera = 22 + Math.random() * 26
+  return viewportToWorld(fx, fy, CAMERA_Z - distanceFromCamera, aspect, out)
 }
 
-function activateRock(rock: Rock) {
-  const anchor = pickSkySpawnPoint(new THREE.Vector3())
+const spawnAnchor = new THREE.Vector3()
+const travelDirection = new THREE.Vector3()
 
-  const travelRoll = Math.random()
-  const travelDir = new THREE.Vector3()
-  if (travelRoll < 0.5) {
-    travelDir.set(
-      Math.random() < 0.5 ? 1 : -1,
-      (Math.random() - 0.5) * 0.35,
-      (Math.random() - 0.5) * 0.2,
-    )
-  } else {
-    travelDir.set(
-      (Math.random() - 0.5) * 0.8,
+function activateRock(rock: Rock, aspect: number) {
+  pickSpawnAnchor(aspect, spawnAnchor)
+
+  travelDirection
+    .set(
+      (Math.random() - 0.5) * 2,
+      (Math.random() - 0.5) * 0.7,
       (Math.random() - 0.5) * 0.5,
-      (Math.random() - 0.5) * 0.3,
     )
-  }
-  travelDir.normalize()
+    .normalize()
 
-  const travelDistance = 10 + Math.random() * 14
-  rock.duration = 12 + Math.random() * 10
-  rock.start.copy(anchor).addScaledVector(travelDir, -travelDistance * 0.5)
-  rock.end.copy(anchor).addScaledVector(travelDir, travelDistance * 0.5)
+  const travelDistance = 8 + Math.random() * 12
+  rock.duration = 26 + Math.random() * 22
+  rock.start.copy(spawnAnchor).addScaledVector(travelDirection, -travelDistance * 0.5)
+  rock.end.copy(spawnAnchor).addScaledVector(travelDirection, travelDistance * 0.5)
   rock.progress = 0
   rock.active = true
-
-  const cameraPos = new THREE.Vector3(0, 0, CAMERA_Z)
-  const midDist = rock.start.clone().lerp(rock.end, 0.5).distanceTo(cameraPos)
-  const distT = THREE.MathUtils.clamp((midDist - 10) / 16, 0, 1)
-  rock.scale = THREE.MathUtils.clamp(
-    THREE.MathUtils.lerp(0.55, 1.8, distT) * (0.9 + Math.random() * 0.2),
-    0.4,
-    1.8,
-  )
+  rock.scale = 0.14 + Math.random() * 0.36
 
   rock.tumbleSpeed.set(
-    (Math.random() - 0.5) * 0.22,
-    (Math.random() - 0.5) * 0.22,
-    (Math.random() - 0.5) * 0.22,
+    (Math.random() - 0.5) * 0.16,
+    (Math.random() - 0.5) * 0.16,
+    (Math.random() - 0.5) * 0.16,
   )
   rock.baseRotation.set(
     Math.random() * Math.PI * 2,
@@ -148,7 +221,7 @@ function activateRock(rock: Rock) {
   )
 }
 
-/** Occasional slow tumbling debris drifting through the upper sky. */
+/** Sparse tumbling debris, lit by the same terminator model as the shells. */
 export function DriftingRocks() {
   const meshRefs = useRef<(THREE.Mesh | null)[]>(
     Array.from({ length: POOL_SIZE }, () => null),
@@ -156,51 +229,68 @@ export function DriftingRocks() {
   const rocksRef = useRef<Rock[]>(
     Array.from({ length: POOL_SIZE }, () => createRock()),
   )
-  const spawnTimerRef = useRef(3 + Math.random() * 2)
+  const spawnTimerRef = useRef(2)
   const scratchPosition = useMemo(() => new THREE.Vector3(), [])
-  const scratchRotation = useMemo(() => new THREE.Euler(), [])
 
-  const { geometries, material } = useMemo(() => {
-    const geos = Array.from({ length: POOL_SIZE }, (_, index) =>
-      createRockGeometry(0x9e37 + index * 7919),
-    )
-    const normalMap = createLunarTexture()
-    const mat = new THREE.MeshStandardMaterial({
-      color: '#9aa3b0',
-      metalness: 0,
-      roughness: 0.85,
-      normalMap,
-      normalScale: new THREE.Vector2(0.18, 0.18),
-    })
-    return { geometries: geos, material: mat }
-  }, [])
+  const geometries = useMemo(
+    () =>
+      Array.from({ length: POOL_SIZE }, (_, index) =>
+        createRockGeometry(0x9e37 + index * 7919),
+      ),
+    [],
+  )
 
-  const scheduleNextSpawn = () => {
-    spawnTimerRef.current = 8 + Math.random() * 8
-  }
+  const material = useMemo(
+    () =>
+      createShellMaterial({
+        tint: '#8d94a2',
+        lightDir: SUN_DIR,
+        lightColor: '#e8edf8',
+        intensity: 1.9,
+        // Wider than the shells': on something this small a hard terminator
+        // collapses to a single bright pixel edge.
+        terminator: 0.3,
+        ambient: 0.05,
+        opacity: 1,
+      }),
+    [],
+  )
 
-  const trySpawn = () => {
-    const inactive = rocksRef.current.find((rock) => !rock.active)
-    if (!inactive) {
-      return
+  useEffect(() => {
+    return () => {
+      material.dispose()
+      for (const geometry of geometries) {
+        geometry.dispose()
+      }
     }
-    activateRock(inactive)
-    scheduleNextSpawn()
-  }
+  }, [material, geometries])
 
-  useFrame((_, delta) => {
+  const uniforms = useMemo(
+    () => getShellMaterialUniforms(material),
+    [material],
+  )
+
+  useFrame((state, delta) => {
+    // Static debris would look wrong against streaking stars, so it clears out
+    // for the duration of the warp.
+    uniforms.uOpacity.value = 1 - scrollState.warp
+
+    const aspect = Math.max(0.2, state.size.width / state.size.height)
+
     spawnTimerRef.current -= delta
     if (spawnTimerRef.current <= 0) {
-      trySpawn()
+      const inactive = rocksRef.current.find((rock) => !rock.active)
+      if (inactive) {
+        activateRock(inactive, aspect)
+      }
+      spawnTimerRef.current = 2.5 + Math.random() * 4
     }
 
     const rocks = rocksRef.current
     for (let i = 0; i < POOL_SIZE; i++) {
       const rock = rocks[i]
       const mesh = meshRefs.current[i]
-      if (!mesh) {
-        continue
-      }
+      if (!mesh) continue
 
       if (!rock.active) {
         mesh.visible = false
@@ -216,15 +306,14 @@ export function DriftingRocks() {
 
       scratchPosition.lerpVectors(rock.start, rock.end, rock.progress)
       const elapsed = rock.progress * rock.duration
-      scratchRotation.set(
+
+      mesh.visible = true
+      mesh.position.copy(scratchPosition)
+      mesh.rotation.set(
         rock.baseRotation.x + rock.tumbleSpeed.x * elapsed,
         rock.baseRotation.y + rock.tumbleSpeed.y * elapsed,
         rock.baseRotation.z + rock.tumbleSpeed.z * elapsed,
       )
-
-      mesh.visible = true
-      mesh.position.copy(scratchPosition)
-      mesh.rotation.copy(scratchRotation)
       mesh.scale.setScalar(rock.scale)
     }
   })
@@ -240,7 +329,6 @@ export function DriftingRocks() {
           geometry={geometries[index]}
           material={material}
           visible={false}
-          frustumCulled={false}
         />
       ))}
     </group>
