@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import {
   Bloom,
@@ -11,8 +11,10 @@ import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import { Shells } from './Shells'
 import { DriftingRocks } from './DriftingRocks'
+import { ShootingStars } from './ShootingStars'
 import { Starfield } from './Starfield'
 import { dprFor, type QualityTier } from '../lib/quality'
+import { startIntroWarp } from '../lib/scroll'
 
 function Effects({ tier }: { tier: QualityTier }) {
   const aberrationOffset = useMemo(
@@ -57,6 +59,13 @@ function Effects({ tier }: { tier: QualityTier }) {
   )
 }
 
+function IntroWarpStarter() {
+  useEffect(() => {
+    startIntroWarp()
+  }, [])
+  return null
+}
+
 export function Scene({ tier }: { tier: QualityTier }) {
   return (
     <Canvas
@@ -67,14 +76,16 @@ export function Scene({ tier }: { tier: QualityTier }) {
         alpha: false,
         powerPreference: 'high-performance',
       }}
-      camera={{ position: [0, 0, 17], fov: 42, near: 0.1, far: 160 }}
+      camera={{ position: [0, 0, 23], fov: 42, near: 0.1, far: 200 }}
     >
+      <IntroWarpStarter />
       <color attach="background" args={['#000000']} />
       {/* No scene lights: every surface carries its own light direction so the
           four shells can be lit independently, the way the logo is. */}
       <Shells />
       <Starfield count={tier === 'high' ? 1600 : 700} />
       <DriftingRocks />
+      <ShootingStars />
       <Effects tier={tier} />
     </Canvas>
   )

@@ -73,19 +73,51 @@ up concentrically.
 
 ### Surface detail is generated, and seamless
 
-`src/scene/lunarTexture.ts` builds a height field from value-noise fbm plus
-stamped craters, then converts it to a tangent-space normal map with a Sobel
-filter. Nothing is fetched, so the scene ships zero texture bytes.
+`src/scene/lunarSurface.ts` builds a height field from value-noise fbm plus
+stamped craters, then emits three maps: a tangent-space **normal map** via a
+Sobel filter, a **reflectance map**, and a small **tiled detail map** for
+micro-relief. Nothing is fetched, so the scene ships zero texture bytes. It
+costs roughly 500 ms once, on a `static`-tier-exempt path.
 
-Two properties are load-bearing and easy to break:
+Five properties are load-bearing and easy to break:
 
-- **The noise is periodic in x.** The map wraps around a sphere, so a mismatch
-  between u=1 and u=0 is a real cliff that the Sobel pass renders as a hard
-  vertical seam. Octaves double by exactly 2 and every lattice period is a whole
-  number of cells; layer sampling and crater stamping wrap in x and clamp in y.
+- **The frequency ladder is deliberate.** Every layer is stored at a resolution
+  where its finest octave still spans two texels, and is upsampled at most once.
+  `buildNoiseLayer` throws if a layer would alias. An earlier version built all
+  relief at quarter resolution and upsampled it twice, which turned the
+  derivative into flat facets, and asked for noise periods up to 11x the storage
+  width, so the layers meant to supply fine detail were just aliased hash. Both
+  read on screen as "smooth low-poly CG".
+- **Micro-relief is tiled, not baked in.** At `DETAIL_REPEAT` the 512px tile
+  resolves like a 4096x2048 equirect map for 1/32 of the pixels. An equirect map
+  fine enough to stay crisp when a shell fills the frame is not affordable to
+  generate.
+- **Reflectance is separate from relief.** Shading alone cannot produce the tonal
+  range of a lunar photograph, and craters vanish wherever the surface faces the
+  light directly. Every crater gets a faint bright rim and dark floor regardless
+  of age; only the rare fresh ones get the bright ejecta blanket. The map is
+  rescaled to a mean of exactly 1.0, so its contrast can be retuned without
+  de-calibrating the shell keyframe intensities.
+- **The noise is periodic.** The map wraps around a sphere, so a mismatch between
+  u=1 and u=0 is a real cliff that the Sobel pass renders as a hard vertical
+  seam. Octaves double by exactly 2 and every lattice period is a whole number of
+  cells; layer sampling and crater stamping wrap in x and clamp in y. The detail
+  tile wraps in both axes so it can repeat.
 - **The tangent basis is analytical.** Screen-space derivatives jump by a full
   unit across the UV seam. The shader derives the basis from `uv` instead, using
   three.js' sphere parametrisation `P = (-cos u sin v, cos v, sin u sin v)`.
+
+Two things the shader does that are worth knowing about:
+
+- Near the poles the equirect mapping collapses in u and smears the detail tile
+  into a radial sunburst, so there the tile is read through a top-down
+  projection instead and blended in by latitude.
+- The detail tile's blue channel carries micro-scale tone rather than a normal
+  component — the shader takes z from the base map, so the channel was free.
+
+The terminator width is a real trade-off, not a magic number. Too narrow and
+relief saturates to fully lit or fully black, so craters render as pepper; too
+wide and the crescent edge goes soft and stops reading as the logo.
 
 ### The warp outro loops back
 
@@ -114,7 +146,12 @@ The things that matter, in order of impact:
 | `Bloom resolutionScale={0.4}` | The glow is broad and soft; sub-half resolution is indistinguishable |
 
 Measured on an Apple M4, production build: 60 FPS at every beat including the
-warp. Before these changes the same scene ran at 14 FPS.
+warp, and 59 FPS at 3.7M pixels (2560x1440). Before these changes the same scene
+ran at 14 FPS.
+
+The surface shader reads four textures per fragment — base normal, reflectance,
+and the detail tile through two projections. That is the cost of the close-range
+fidelity, and it is what the remaining headroom is spent on.
 
 ## Capability tiers
 

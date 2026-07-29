@@ -28,8 +28,15 @@ let lenisInstance: Lenis | null = null
 let anchors: number[] = []
 let sectionWarp = 0
 let flash = 0
+let introWarp = 0
+let introStarted = false
+let introPhase: 'idle' | 'hold' | 'ease' | 'done' = 'idle'
+let introElapsed = 0
 let loopCooldown = 0
 let veilEnabled = false
+
+const INTRO_HOLD_MS = 3000
+const INTRO_EASE_MS = 800
 
 export function getLenis() {
   return lenisInstance
@@ -96,7 +103,7 @@ function refreshWarp() {
     VELOCITY_WARP_CEILING,
     Math.abs(scrollState.velocity) * VELOCITY_WARP_SCALE,
   )
-  scrollState.warp = Math.max(sectionWarp, velocityWarp, flash)
+  scrollState.warp = Math.max(sectionWarp, velocityWarp, flash, introWarp)
 
   // Dissolves the DOM copy into the streaks near peak warp. Written as a CSS
   // variable rather than React state so it costs nothing per frame — and it is
@@ -132,6 +139,49 @@ function tryLoop(lenis: Lenis) {
   flash = 1
   loopCooldown = LOOP_COOLDOWN_SECONDS
   lenis.scrollTo(0, { immediate: true, force: true })
+}
+
+function tickIntroWarp(deltaMs: number) {
+  if (introPhase === 'idle' || introPhase === 'done') return
+
+  introElapsed += deltaMs
+
+  if (introPhase === 'hold') {
+    introWarp = 1
+    if (introElapsed >= INTRO_HOLD_MS) {
+      introPhase = 'ease'
+      introElapsed = 0
+    }
+    return
+  }
+
+  const u = introElapsed / INTRO_EASE_MS
+  if (u >= 1) {
+    introPhase = 'done'
+    introWarp = 0
+    return
+  }
+  introWarp = 1 - smoothstep(0, 1, u)
+}
+
+/** Full-screen warp streaks on first load; no-op after the first call. */
+export function startIntroWarp() {
+  if (introStarted) return
+  introStarted = true
+  introPhase = 'hold'
+  introElapsed = 0
+  introWarp = 1
+}
+
+export function isIntroWarpActive() {
+  return introPhase === 'hold' || introPhase === 'ease'
+}
+
+function resetIntroWarp() {
+  introWarp = 0
+  introStarted = false
+  introPhase = 'idle'
+  introElapsed = 0
 }
 
 export function useSmoothScroll(smooth: boolean) {
@@ -180,6 +230,7 @@ export function useSmoothScroll(smooth: boolean) {
 
       if (loopCooldown > 0) loopCooldown = Math.max(0, loopCooldown - delta)
       if (flash > 0) flash = Math.max(0, flash - delta / LOOP_FLASH_SECONDS)
+      tickIntroWarp(delta * 1000)
       refreshWarp()
       tryLoop(lenis)
 
@@ -194,6 +245,7 @@ export function useSmoothScroll(smooth: boolean) {
       lenis.destroy()
       lenisInstance = null
       flash = 0
+      resetIntroWarp()
       loopCooldown = 0
       veilEnabled = false
       document.documentElement.style.setProperty('--warp-veil', '0')

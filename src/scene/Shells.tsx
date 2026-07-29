@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState } from '../lib/scroll'
-import { createLunarTexture } from './lunarTexture'
+import { createPlanetSurface } from './lunarSurface'
 import {
   createShellMaterial,
   getShellMaterialUniforms,
@@ -37,7 +37,10 @@ function Shell({ motion }: { motion: ShellMotion }) {
   const spinRef = useRef<THREE.Group>(null)
   const meshRef = useRef<THREE.Mesh>(null)
   const hasInitialised = useRef(false)
-  const normalMap = useMemo(() => createLunarTexture(), [])
+  const surface = useMemo(
+    () => createPlanetSurface(motion.surfaceKind),
+    [motion.surfaceKind],
+  )
 
   const spinAxis = useMemo(
     () => new THREE.Vector3(...motion.spinAxis).normalize(),
@@ -57,15 +60,16 @@ function Shell({ motion }: { motion: ShellMotion }) {
     const first = motion.keyframes[0]
     return createShellMaterial({
       tint: motion.tint,
-      normalMap,
+      surface,
       normalScale: motion.normalScale,
+      detailScale: motion.detailScale,
       lightColor: motion.lightColor,
       terminator: motion.terminator,
       lightDir: new THREE.Vector3(...first.light),
       intensity: first.intensity * INTENSITY_SCALE,
       opacity: 0,
     })
-  }, [motion, normalMap])
+  }, [motion, surface])
 
   useEffect(() => {
     return () => {

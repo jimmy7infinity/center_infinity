@@ -1,11 +1,12 @@
 import * as THREE from 'three'
 import { beatIndex, type BeatId } from '../lib/beats'
+import type { PlanetKind } from './lunarSurface'
 
 const DEG = Math.PI / 180
 const FOV_HALF = 21 * DEG
 
 /** Nominal camera depth that the `fx`/`fy` composition fractions are authored against. */
-const FRAME_REFERENCE_Z = 17
+const FRAME_REFERENCE_Z = 23
 
 /**
  * Scroll-driven pose for one shell at a given beat.
@@ -28,10 +29,16 @@ export type ShellKeyframe = {
 
 export type ShellMotion = {
   id: 'A' | 'B' | 'C' | 'D'
+  surfaceKind: PlanetKind
   /** Diameter as a fraction of the smaller viewport axis at `referenceZ`. */
   diameter: number
   referenceZ: number
   normalScale: number
+  /**
+   * Strength of the tiled micro-relief. The shells that come closest to camera
+   * magnify the base map most, so they lean hardest on the detail tile.
+   */
+  detailScale: number
   tint: string
   segments: number
   lightColor: string
@@ -151,13 +158,15 @@ function kf(
 export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'A',
-    diameter: 0.82,
+    surfaceKind: 'jupiter',
+    diameter: 0.74,
     referenceZ: -4,
     normalScale: 0.32,
-    tint: '#858a94',
+    detailScale: 0.5,
+    tint: '#8a8e96',
     segments: 96,
     lightColor: '#e8edf8',
-    terminator: 0.12,
+    terminator: 0.18,
     spinAxis: [0.12, 1, 0.05],
     spinRate: -0.016,
     keyframes: [
@@ -177,13 +186,15 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   },
   {
     id: 'B',
-    diameter: 0.44,
+    surfaceKind: 'moon',
+    diameter: 0.4,
     referenceZ: 5.5,
     normalScale: 0.4,
-    tint: '#9ca1ad',
+    detailScale: 0.42,
+    tint: '#9a9ea8',
     segments: 96,
     lightColor: '#e8edf8',
-    terminator: 0.12,
+    terminator: 0.18,
     spinAxis: [0.15, 0.75, 0.65],
     spinRate: -0.038,
     keyframes: [
@@ -200,13 +211,15 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   },
   {
     id: 'C',
-    diameter: 0.57,
+    surfaceKind: 'venus',
+    diameter: 0.51,
     referenceZ: -3.2,
     normalScale: 0.36,
-    tint: '#90959f',
+    detailScale: 0.46,
+    tint: '#8e929a',
     segments: 96,
     lightColor: '#d8e0ec',
-    terminator: 0.1,
+    terminator: 0.16,
     spinAxis: [0.85, 0.15, 0.1],
     spinRate: 0.026,
     keyframes: [
@@ -223,13 +236,15 @@ export const SHELL_MOTIONS: ShellMotion[] = [
   },
   {
     id: 'D',
-    diameter: 0.22,
+    surfaceKind: 'ice',
+    diameter: 0.2,
     referenceZ: 4,
     normalScale: 0.38,
-    tint: '#b4bcc8',
+    detailScale: 0.38,
+    tint: '#a8aeb8',
     segments: 96,
     lightColor: '#d8e0ec',
-    terminator: 0.1,
+    terminator: 0.16,
     spinAxis: [0.45, 0.45, 0.75],
     spinRate: 0.052,
     keyframes: [
@@ -253,50 +268,50 @@ export const SHELL_MOTIONS: ShellMotion[] = [
  * straight ahead on a wide lens.
  */
 export const CAMERA_KEYFRAMES: CameraKeyframe[] = [
-  { at: beatIndex('hero'), position: [0, 0, 17], target: [0, 0, -2], fov: 42 },
+  { at: beatIndex('hero'), position: [0, 0, 23], target: [0, 0, -2], fov: 42 },
   {
     at: beatIndex('services'),
-    position: [-1.5, 0.4, 16.2],
+    position: [-1.5, 0.4, 21.2],
     target: [1.6, -0.3, -4],
     fov: 43,
   },
   {
     at: beatIndex('work-1'),
-    position: [1.6, -0.5, 15.4],
+    position: [1.6, -0.5, 20.4],
     target: [-1.8, 0.4, -5],
     fov: 44,
   },
   {
     at: beatIndex('work-2'),
-    position: [-2, 0.7, 14.8],
+    position: [-2, 0.7, 19.8],
     target: [2, -0.6, -6],
     fov: 45,
   },
   {
     at: beatIndex('work-3'),
-    position: [2.2, 0.1, 14.2],
+    position: [2.2, 0.1, 19.2],
     target: [-1.6, 0.7, -6],
     fov: 45,
   },
   {
     at: beatIndex('work-4'),
-    position: [-1.4, -0.8, 13.8],
+    position: [-1.4, -0.8, 18.8],
     target: [1.4, 0.9, -5],
     fov: 44,
   },
   {
     at: beatIndex('work-5'),
-    position: [0.9, 1, 14.6],
+    position: [0.9, 1, 19.6],
     target: [-0.9, -0.9, -6],
     fov: 43,
   },
   {
     at: beatIndex('contact'),
-    position: [-1.8, 0.1, 13],
+    position: [-1.8, 0.1, 18],
     target: [2.4, 0.1, -4],
     fov: 43,
   },
-  { at: beatIndex('warp'), position: [0, 0, 8], target: [0, 0, -24], fov: 56 },
+  { at: beatIndex('warp'), position: [0, 0, 11], target: [0, 0, -24], fov: 56 },
 ]
 
 function bracket<T extends { at: number }>(

@@ -7,9 +7,19 @@ import {
   getShellMaterialUniforms,
 } from './shellMaterial'
 
-const POOL_SIZE = 7
-const CAMERA_Z = 17
-const FOV_HALF_RAD = (42 * Math.PI) / 180 / 2
+const POOL_SIZE = 10
+
+/**
+ * Distance from the camera, in world units. The shells occupy roughly 8 to 37
+ * units out, so the near band passes in front of all of them and the mid band
+ * threads between them — debris confined behind the shells reads as a painted
+ * backdrop rather than as objects sharing the space.
+ */
+const DEPTH_BANDS: readonly { range: [number, number]; weight: number }[] = [
+  { range: [3.6, 8.5], weight: 0.42 },
+  { range: [8.5, 17], weight: 0.38 },
+  { range: [17, 34], weight: 0.2 },
+]
 
 /**
  * Debris reads as one sun-lit field, so unlike the shells (which each carry
@@ -113,16 +123,25 @@ function rockRadius(direction: THREE.Vector3, lobes: Lobe[]): number {
 
 function createRockGeometry(seed: number): THREE.BufferGeometry {
   const rng = seededRandom(seed)
-  const geometry = new THREE.IcosahedronGeometry(1, 3)
+  // Subdivided enough to resolve the craggy lobes below. These now pass close
+  // to camera, where a smooth boulder reads as a paper shard.
+  const geometry = new THREE.IcosahedronGeometry(1, 5)
 
-  const lobes: Lobe[] = Array.from({ length: 4 }, () => ({
-    axis: new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1)
-      .normalize(),
-    // Amplitudes total well under 1 so the radius can never invert.
-    amp: 0.05 + rng() * 0.09,
-    freq: 1.4 + rng() * 2.8,
-    phase: rng() * Math.PI * 2,
-  }))
+  const makeLobes = (count: number, ampBase: number, ampSpread: number, freqBase: number, freqSpread: number) =>
+    Array.from({ length: count }, () => ({
+      axis: new THREE.Vector3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1).normalize(),
+      amp: ampBase + rng() * ampSpread,
+      freq: freqBase + rng() * freqSpread,
+      phase: rng() * Math.PI * 2,
+    }))
+
+  // Amplitudes total well under 1 so the radius can never invert. The low
+  // frequencies give the boulder its overall shape; the high ones give it an
+  // irregular terminator, which is most of what makes it read as rock.
+  const lobes: Lobe[] = [
+    ...makeLobes(4, 0.055, 0.09, 1.4, 2.6),
+    ...makeLobes(7, 0.012, 0.028, 5.5, 8.5),
+  ]
 
   const position = geometry.attributes.position
   const direction = new THREE.Vector3()
@@ -160,54 +179,62 @@ function createRock(): Rock {
   }
 }
 
-function viewportToWorld(
-  fx: number,
-  fy: number,
-  z: number,
-  aspect: number,
-  out: THREE.Vector3,
-): THREE.Vector3 {
-  const distance = CAMERA_Z - z
-  const viewHeight = 2 * distance * Math.tan(FOV_HALF_RAD)
-  const viewWidth = viewHeight * aspect
-  return out.set((fx - 0.5) * viewWidth, (0.5 - fy) * viewHeight, z)
-}
-
-/** Biased to the upper band and the side margins, away from the copy. */
-function pickSpawnAnchor(aspect: number, out: THREE.Vector3): THREE.Vector3 {
-  const fromSide = Math.random() < 0.55
-  const fx = fromSide
-    ? Math.random() < 0.5
-      ? -0.12 + Math.random() * 0.28
-      : 0.84 + Math.random() * 0.28
-    : 0.1 + Math.random() * 0.8
-  const fy = fromSide ? 0.05 + Math.random() * 0.6 : -0.08 + Math.random() * 0.35
-
-  const distanceFromCamera = 22 + Math.random() * 26
-  return viewportToWorld(fx, fy, CAMERA_Z - distanceFromCamera, aspect, out)
+function pickDistance(): number {
+  let roll = Math.random()
+  for (const band of DEPTH_BANDS) {
+    if (roll < band.weight) {
+      return band.range[0] + (roll / band.weight) * (band.range[1] - band.range[0])
+    }
+    roll -= band.weight
+  }
+  const last = DEPTH_BANDS[DEPTH_BANDS.length - 1].range
+  return last[0] + Math.random() * (last[1] - last[0])
 }
 
 const spawnAnchor = new THREE.Vector3()
 const travelDirection = new THREE.Vector3()
 
-function activateRock(rock: Rock, aspect: number) {
-  pickSpawnAnchor(aspect, spawnAnchor)
+function activateRock(rock: Rock, camera: THREE.PerspectiveCamera) {
+  const distance = pickDistance()
+  const frameHeight = 2 * distance * Math.tan((camera.fov * Math.PI) / 360)
+  const frameWidth = frameHeight * camera.aspect
 
+  // Biased to the upper band. The copy sits below on every breakpoint, and on
+  // portrait it takes the whole lower half.
+  const fx = 0.06 + Math.random() * 0.88
+  const fy =
+    Math.random() < 0.82 ? 0.02 + Math.random() * 0.46 : 0.48 + Math.random() * 0.28
+
+  // Mostly across the frame, with enough z to keep them off a shared plane.
+  const pitch = (Math.random() - 0.5) * 0.9
   travelDirection
     .set(
-      (Math.random() - 0.5) * 2,
-      (Math.random() - 0.5) * 0.7,
-      (Math.random() - 0.5) * 0.5,
+      Math.cos(pitch) * (Math.random() < 0.5 ? 1 : -1),
+      Math.sin(pitch),
+      (Math.random() - 0.5) * 0.35,
     )
-    .normalize()
+    .transformDirection(camera.matrixWorld)
 
-  const travelDistance = 8 + Math.random() * 12
-  rock.duration = 26 + Math.random() * 22
-  rock.start.copy(spawnAnchor).addScaledVector(travelDirection, -travelDistance * 0.5)
-  rock.end.copy(spawnAnchor).addScaledVector(travelDirection, travelDistance * 0.5)
+  // Resolved through the camera's own matrix rather than an assumed pose. The
+  // rig translates and turns across the beats, and at these distances a fixed
+  // reference puts near rocks outside the frame entirely.
+  spawnAnchor.set((fx - 0.5) * frameWidth, (0.5 - fy) * frameHeight, -distance)
+  camera.localToWorld(spawnAnchor)
+
+  // Wide enough that both ends sit off-frame, so rocks enter and leave rather
+  // than appearing and vanishing mid-shot.
+  const span = frameWidth * 2.4
+  rock.start.copy(spawnAnchor).addScaledVector(travelDirection, -span * 0.5)
+  rock.end.copy(spawnAnchor).addScaledVector(travelDirection, span * 0.5)
   rock.progress = 0
   rock.active = true
-  rock.scale = 0.14 + Math.random() * 0.36
+  // Near rocks cross faster. That parallax is what sells the depth now that
+  // they share space with the shells instead of sitting behind them.
+  rock.duration = (16 + Math.random() * 12) * (0.5 + distance / 26)
+  // Scaled with depth so a rock stays rock-sized on screen at any distance
+  // instead of becoming a second moon up close. The band works out to roughly
+  // 2–8% of frame height whatever the depth.
+  rock.scale = distance * (0.009 + Math.random() * 0.021)
 
   rock.tumbleSpeed.set(
     (Math.random() - 0.5) * 0.16,
@@ -246,7 +273,11 @@ export function DriftingRocks() {
         tint: '#8d94a2',
         lightDir: SUN_DIR,
         lightColor: '#e8edf8',
-        intensity: 1.9,
+        // Deliberately dimmer than the shells' effective 1.4–1.8. Rocks now
+        // cross in front of lit crescents, and one that out-shines the moon
+        // behind it reads as a pasted-on shard; darker, it reads as a
+        // silhouette, which is what conveys "in front".
+        intensity: 1.05,
         // Wider than the shells': on something this small a hard terminator
         // collapses to a single bright pixel edge.
         terminator: 0.3,
@@ -275,15 +306,16 @@ export function DriftingRocks() {
     // for the duration of the warp.
     uniforms.uOpacity.value = 1 - scrollState.warp
 
-    const aspect = Math.max(0.2, state.size.width / state.size.height)
+    const camera = state.camera
+    if (!(camera instanceof THREE.PerspectiveCamera)) return
 
     spawnTimerRef.current -= delta
     if (spawnTimerRef.current <= 0) {
       const inactive = rocksRef.current.find((rock) => !rock.active)
       if (inactive) {
-        activateRock(inactive, aspect)
+        activateRock(inactive, camera)
       }
-      spawnTimerRef.current = 2.5 + Math.random() * 4
+      spawnTimerRef.current = 2.2 + Math.random() * 2.8
     }
 
     const rocks = rocksRef.current
