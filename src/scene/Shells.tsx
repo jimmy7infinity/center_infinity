@@ -40,9 +40,9 @@ type CameraKeyframe = {
 const CAMERA_KEYFRAMES: CameraKeyframe[] = [
   { at: 0, x: 0, y: 0, z: 17, fov: 42 },
   { at: 0.25, x: 0.2, y: 0.1, z: 15, fov: 44 },
-  { at: 0.5, x: 0.4, y: 0.2, z: 11, fov: 48 },
-  { at: 0.75, x: 0.8, y: -0.2, z: 5, fov: 46 },
-  { at: 1, x: 1.2, y: -0.4, z: -2, fov: 40 },
+  { at: 0.5, x: 0.5, y: 0.15, z: 12.5, fov: 46 },
+  { at: 0.75, x: 0.7, y: -0.1, z: 11.5, fov: 45 },
+  { at: 1, x: 0.9, y: -0.25, z: 10.5, fov: 44 },
 ]
 
 function sampleCameraKeyframe(progress: number): CameraKeyframe {
@@ -118,10 +118,11 @@ function Shell({ motion }: { motion: ShellMotion }) {
     const intensityTarget = sampleOut.intensity * INTENSITY_SCALE
     const distanceToSurface =
       state.camera.position.distanceTo(sampleOut.position) - motion.radius
+    // Fully opaque outside the sphere; fade only after the camera crosses the surface.
     const opacityTarget = THREE.MathUtils.smoothstep(
       distanceToSurface,
-      -0.4,
-      1.1,
+      -2.0,
+      0.0,
     )
 
     if (!hasInitialised.current) {
@@ -215,7 +216,7 @@ function Shell({ motion }: { motion: ShellMotion }) {
   )
 }
 
-/** Scroll pulls the camera inward through the nested shells. */
+/** Scroll-driven dolly; camera stays outside shells in late beats. */
 function CameraRig() {
   const fovRef = useRef(42)
   const hasInitialised = useRef(false)

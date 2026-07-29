@@ -197,8 +197,8 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       },
       {
         at: 1,
-        position: viewportToWorld(0.74, 0.22, 5.5),
-        lightDir: lightFromAbove(0.75, -0.3),
+        position: viewportToWorld(0.62, 0.48, 5.5),
+        lightDir: lightFromAbove(0.55, -0.3),
         intensity: 0.8,
         spinAxis: [0.85, 0.15, 0.45],
         spinRate: -0.044,
@@ -299,8 +299,8 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       },
       {
         at: 1,
-        position: viewportToWorld(0.78, 0.78, 4.0),
-        lightDir: lightFromBelow(0.35, -0.28),
+        position: viewportToWorld(0.62, 0.58, 4.0),
+        lightDir: lightFromBelow(0.45, -0.28),
         intensity: 0.8,
         spinAxis: [0.35, 0.65, 0.6],
         spinRate: 0.058,
