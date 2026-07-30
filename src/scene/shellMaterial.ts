@@ -202,7 +202,7 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     },
     uNormalScale: { value: opts.normalScale ?? 1 },
     uDetailScale: { value: opts.detailScale ?? 0.6 },
-    uDetailTone: { value: opts.detailTone ?? 0.2 },
+    uDetailTone: { value: opts.detailTone ?? 0.28 },
     uAlbedoAmount: { value: opts.albedoAmount ?? 1 },
   }
 

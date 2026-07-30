@@ -36,9 +36,9 @@ const ANISOTROPY = 12
  */
 const HIGHLAND_ALBEDO = 1.04
 /** Maria / dark basalt — kept well below highlands so basins read as dark pools. */
-const MARIA_ALBEDO = 0.45
+const MARIA_ALBEDO = 0.3
 const ICE_HIGHLAND_ALBEDO = 1.12
-const ICE_MARIA_ALBEDO = 0.55
+const ICE_MARIA_ALBEDO = 0.36
 const ALBEDO_ENCODE_RANGE = 2.5
 
 /**
@@ -47,9 +47,9 @@ const ALBEDO_ENCODE_RANGE = 2.5
  * curve on the normalised albedo (see albedoToCanvas) pulls more mass into
  * the dark end without dropping the void back to pure black.
  */
-const EINK_MIN = 0.14
-const EINK_MAX = 0.80
-const EINK_DARK_POWER = 1.35
+const EINK_MIN = 0.06
+const EINK_MAX = 0.9
+const EINK_DARK_POWER = 1.65
 
 export type PlanetKind = 'moon' | 'jupiter' | 'venus' | 'ice'
 
@@ -295,7 +295,7 @@ function craterAlbedoProfile(dist: number, crater: CraterSpec) {
   if (t < crater.floorEnd) {
     const ft = t / crater.floorEnd
     // Stronger ponded-melt darkening so floors read as dark pits under e-ink.
-    a -= (0.14 + crater.darkFloor * 1.55) * (1 - ft * ft)
+    a -= (0.18 + crater.darkFloor * 1.8) * (1 - ft * ft)
   }
 
   return a
@@ -573,9 +573,9 @@ function buildJupiterFields() {
       heights[row + x] = (bands - 0.5) * 0.16 + warp * 0.035
       // Wider band contrast so dark belts sit well below bright zones.
       albedo[row + x] =
-        0.52 +
-        bands * 0.38 +
-        (sampleLayer(fineBand, u * 52, v * 28) - 0.5) * 0.07
+        0.4 +
+        bands * 0.48 +
+        (sampleLayer(fineBand, u * 52, v * 28) - 0.5) * 0.08
     }
   }
 
@@ -612,7 +612,7 @@ function buildVenusFields() {
       const twist = (sampleLayer(swirl, u * 3.2, v * 2.8) - 0.5) * 0.12
 
       heights[row + x] = (ridge - 0.5) * 0.09 + twist * 0.04
-      albedo[row + x] = 0.48 + ridge * 0.42 + twist * 0.08
+      albedo[row + x] = 0.4 + ridge * 0.5 + twist * 0.09
     }
   }
 

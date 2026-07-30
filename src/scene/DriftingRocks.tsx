@@ -10,15 +10,11 @@ import {
 const POOL_SIZE = 10
 
 /**
- * Distance from the camera, in world units. The shells occupy roughly 8 to 37
- * units out, so the near band passes in front of all of them and the mid band
- * threads between them — debris confined behind the shells reads as a painted
- * backdrop rather than as objects sharing the space.
+ * Distance from the camera, in world units. A single near band keeps debris
+ * between the lens and the shells (~20+ units out at hero).
  */
 const DEPTH_BANDS: readonly { range: [number, number]; weight: number }[] = [
-  { range: [3.6, 8.5], weight: 0.42 },
-  { range: [8.5, 17], weight: 0.38 },
-  { range: [17, 34], weight: 0.2 },
+  { range: [2.8, 6.2], weight: 1 },
 ]
 
 /**
@@ -211,7 +207,7 @@ function activateRock(rock: Rock, camera: THREE.PerspectiveCamera) {
     .set(
       Math.cos(pitch) * (Math.random() < 0.5 ? 1 : -1),
       Math.sin(pitch),
-      (Math.random() - 0.5) * 0.35,
+      (Math.random() - 0.5) * 0.16,
     )
     .transformDirection(camera.matrixWorld)
 
@@ -362,6 +358,7 @@ export function DriftingRocks() {
           geometry={geometries[index]}
           material={material}
           visible={false}
+          renderOrder={5}
         />
       ))}
     </group>

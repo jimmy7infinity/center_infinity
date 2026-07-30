@@ -34,9 +34,10 @@ let introPhase: 'idle' | 'hold' | 'ease' | 'done' = 'idle'
 let introElapsed = 0
 let loopCooldown = 0
 let veilEnabled = false
+let entered = false
 
-const INTRO_HOLD_MS = 3000
-const INTRO_EASE_MS = 800
+const INTRO_HOLD_MS = 1800
+const INTRO_EASE_MS = 1400
 
 export function getLenis() {
   return lenisInstance
@@ -110,11 +111,15 @@ function refreshWarp() {
   // what hides the cut back to the top, since the text is the only part of the
   // frame that would otherwise pop.
   if (veilEnabled) {
-    const scrollVeil = smoothstep(0.15, 0.85, scrollState.warp)
-    document.documentElement.style.setProperty(
-      '--warp-veil',
-      Math.max(scrollVeil, introWarp).toFixed(3),
-    )
+    if (!entered) {
+      document.documentElement.style.setProperty('--warp-veil', '1')
+    } else {
+      const scrollVeil = smoothstep(0.15, 0.85, scrollState.warp)
+      document.documentElement.style.setProperty(
+        '--warp-veil',
+        Math.max(scrollVeil, introWarp).toFixed(3),
+      )
+    }
   }
 }
 
@@ -165,13 +170,35 @@ function tickIntroWarp(deltaMs: number) {
   introWarp = 1 - smoothstep(0, 1, u)
 }
 
-/** Full-screen warp streaks on first load; no-op after the first call. */
+/** Full-screen warp streaks after the user enters; no-op after the first call. */
 export function startIntroWarp() {
   if (introStarted) return
   introStarted = true
   introPhase = 'hold'
   introElapsed = 0
   introWarp = 1
+}
+
+export function hasEntered() {
+  return entered
+}
+
+export function enterSite() {
+  if (entered) return
+  entered = true
+  getLenis()?.start()
+  startIntroWarp()
+  refreshWarp()
+}
+
+/** 0 while idle or hold; eases 0→1 during intro settle; 1 when complete. */
+export function getIntroArrive() {
+  if (introPhase === 'done') return 1
+  if (introPhase === 'ease') {
+    const u = introElapsed / INTRO_EASE_MS
+    return smoothstep(0, 1, Math.min(1, u))
+  }
+  return 0
 }
 
 export function isIntroWarpActive() {
@@ -205,6 +232,7 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
     // no streaks to dissolve into and the copy must stay put.
     veilEnabled = smooth
     if (!smooth) {
+      entered = true
       document.documentElement.style.setProperty('--warp-veil', '0')
       const onScroll = () => applyScroll(window.scrollY, 0)
       onScroll()
@@ -216,7 +244,6 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       }
     }
 
-    startIntroWarp()
     refreshWarp()
 
     const lenis = new Lenis({
@@ -225,6 +252,7 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       touchMultiplier: 1.5,
     })
     lenisInstance = lenis
+    lenis.stop()
 
     lenis.on('scroll', (instance: Lenis) => {
       applyScroll(instance.scroll ?? window.scrollY, instance.velocity ?? 0)

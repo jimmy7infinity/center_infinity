@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { scrollState } from '../lib/scroll'
+import { scrollState, getIntroArrive, hasEntered } from '../lib/scroll'
 import { createPlanetSurface } from './lunarSurface'
 import {
   createShellMaterial,
@@ -31,6 +31,10 @@ const CAMERA_DAMP_XY = 2.4
 const CAMERA_DAMP_Z = 2.8
 const CAMERA_DAMP_FOV = 2.2
 const CAMERA_DAMP_TARGET = 2.1
+
+const INTRO_FAR_Z = 48
+const INTRO_FAR_FOV = 52
+const INTRO_FAR_TARGET = new THREE.Vector3(0, 0, -2)
 
 function Shell({ motion }: { motion: ShellMotion }) {
   const groupRef = useRef<THREE.Group>(null)
@@ -201,22 +205,58 @@ function CameraRig() {
     }),
     [],
   )
+  const heroPose = useMemo<CameraPose>(
+    () => ({
+      position: new THREE.Vector3(),
+      target: new THREE.Vector3(),
+      fov: 42,
+    }),
+    [],
+  )
   const lookTarget = useMemo(() => new THREE.Vector3(0, 0, -2), [])
 
   useFrame((state, delta) => {
     const camera = state.camera
     sampleCameraKeyframe(scrollState.beat, pose)
+    sampleCameraKeyframe(0, heroPose)
 
-    const destX = pose.position.x + state.pointer.x * 0.2
-    const destY = pose.position.y + state.pointer.y * 0.25
-    const destZ = pose.position.z
+    const arrive = getIntroArrive()
+    const introSettling = hasEntered() && arrive < 1
+    const useIntroPose = !hasEntered() || introSettling
+
+    let destX: number
+    let destY: number
+    let destZ: number
+    let destFov: number
+    let targetX: number
+    let targetY: number
+    let targetZ: number
+
+    if (useIntroPose) {
+      const u = hasEntered() ? arrive : 0
+      destX = THREE.MathUtils.lerp(0, heroPose.position.x, u)
+      destY = THREE.MathUtils.lerp(0, heroPose.position.y, u)
+      destZ = THREE.MathUtils.lerp(INTRO_FAR_Z, heroPose.position.z, u)
+      destFov = THREE.MathUtils.lerp(INTRO_FAR_FOV, heroPose.fov, u)
+      targetX = THREE.MathUtils.lerp(INTRO_FAR_TARGET.x, heroPose.target.x, u)
+      targetY = THREE.MathUtils.lerp(INTRO_FAR_TARGET.y, heroPose.target.y, u)
+      targetZ = THREE.MathUtils.lerp(INTRO_FAR_TARGET.z, heroPose.target.z, u)
+    } else {
+      destX = pose.position.x + state.pointer.x * 0.2
+      destY = pose.position.y + state.pointer.y * 0.25
+      destZ = pose.position.z
+      destFov = pose.fov
+      targetX = pose.target.x
+      targetY = pose.target.y
+      targetZ = pose.target.z
+    }
 
     if (!hasInitialised.current) {
       camera.position.set(destX, destY, destZ)
-      lookTarget.copy(pose.target)
-      fovRef.current = pose.fov
+      lookTarget.set(targetX, targetY, targetZ)
+      fovRef.current = destFov
       if (camera instanceof THREE.PerspectiveCamera) {
-        camera.fov = pose.fov
+        camera.fov = destFov
         camera.updateProjectionMatrix()
       }
       hasInitialised.current = true
@@ -242,26 +282,26 @@ function CameraRig() {
 
       lookTarget.x = THREE.MathUtils.damp(
         lookTarget.x,
-        pose.target.x,
+        targetX,
         CAMERA_DAMP_TARGET,
         delta,
       )
       lookTarget.y = THREE.MathUtils.damp(
         lookTarget.y,
-        pose.target.y,
+        targetY,
         CAMERA_DAMP_TARGET,
         delta,
       )
       lookTarget.z = THREE.MathUtils.damp(
         lookTarget.z,
-        pose.target.z,
+        targetZ,
         CAMERA_DAMP_TARGET,
         delta,
       )
 
       fovRef.current = THREE.MathUtils.damp(
         fovRef.current,
-        pose.fov,
+        destFov,
         CAMERA_DAMP_FOV,
         delta,
       )
