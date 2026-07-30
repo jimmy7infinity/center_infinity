@@ -282,6 +282,7 @@ export function DriftingRocks() {
         // collapses to a single bright pixel edge.
         terminator: 0.3,
         ambient: 0.05,
+        voidColor: '#121214',
         opacity: 1,
       }),
     [],

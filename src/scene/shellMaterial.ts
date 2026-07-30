@@ -9,6 +9,8 @@ export type ShellMaterialUniforms = {
   uOpacity: THREE.IUniform<number>
   uTerminator: THREE.IUniform<number>
   uAmbient: THREE.IUniform<number>
+  /** Unlit hemisphere matches this so crescents vanish into the void like the logo. */
+  uVoidColor: THREE.IUniform<THREE.Color>
   uNormalMap: THREE.IUniform<THREE.Texture | null>
   uAlbedoMap: THREE.IUniform<THREE.Texture | null>
   uDetailMap: THREE.IUniform<THREE.Texture | null>
@@ -35,8 +37,13 @@ export type ShellMaterialOptions = {
   intensity?: number
   terminator?: number
   opacity?: number
-  /** Fill on the unlit hemisphere. 0 keeps the hard logo terminator. */
+  /**
+   * Fill on the unlit hemisphere. Keep at 0 for logo-style crescents — any
+   * ambient lifts the dark side above the void and the full sphere reads.
+   */
   ambient?: number
+  /** Must match the scene clear colour so unlit faces disappear into space. */
+  voidColor?: THREE.ColorRepresentation
 }
 
 /** Fallback only; every caller passes an explicit direction from its keyframes. */
@@ -94,6 +101,7 @@ uniform vec3 uTint;
 uniform float uOpacity;
 uniform float uTerminator;
 uniform float uAmbient;
+uniform vec3 uVoidColor;
 
 varying vec3 vWorldNormal;
 
@@ -161,9 +169,14 @@ void main() {
   float ndotl = dot(N, L);
   float lit = smoothstep(-uTerminator, uTerminator, ndotl);
   lit = pow(lit, 1.35);
+  // Soft fill for debris only. Shells pass ambient=0 so the dark hemisphere
+  // collapses exactly onto uVoidColor — the logo crescent read.
   lit = uAmbient + (1.0 - uAmbient) * lit;
 
-  vec3 rgb = uTint * albedo * uLightColor * uIntensity * lit * uOpacity;
+  vec3 litSurface = uTint * albedo * uLightColor * uIntensity;
+  // Mix through the void rather than multiplying toward black: pure black on a
+  // charcoal backdrop would still silhouette the full sphere.
+  vec3 rgb = mix(uVoidColor, litSurface, lit * uOpacity);
   gl_FragColor = vec4(rgb, 1.0);
 }
 `
@@ -180,6 +193,7 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     uOpacity: { value: opts.opacity ?? 0 },
     uTerminator: { value: opts.terminator ?? 0.08 },
     uAmbient: { value: opts.ambient ?? 0 },
+    uVoidColor: { value: new THREE.Color(opts.voidColor ?? '#121214') },
     uNormalMap: { value: surface?.normalMap ?? null },
     uAlbedoMap: { value: surface?.albedoMap ?? null },
     uDetailMap: { value: surface?.detailMap ?? null },

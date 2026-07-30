@@ -68,7 +68,9 @@ function Shell({ motion }: { motion: ShellMotion }) {
       lightDir: new THREE.Vector3(...first.light),
       intensity: first.intensity * INTENSITY_SCALE,
       opacity: 0,
-      ambient: 0.06,
+      // Zero ambient + void-matched unlit faces = logo crescents only.
+      ambient: 0,
+      voidColor: '#121214',
     })
   }, [motion, surface])
 
