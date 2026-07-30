@@ -34,23 +34,23 @@ const ANISOTROPY = 16
  * the map is rescaled so its mean is exactly 1.0, which keeps the shell
  * keyframe intensities calibrated no matter how this contrast is retuned.
  */
-const HIGHLAND_ALBEDO = 1.08
+const HIGHLAND_ALBEDO = 1.1
 /** Maria / dark basalt — logo-dark blotches on the lit crescent. */
-const MARIA_ALBEDO = 0.12
-const ICE_HIGHLAND_ALBEDO = 1.14
-const ICE_MARIA_ALBEDO = 0.16
+const MARIA_ALBEDO = 0.05
+const ICE_HIGHLAND_ALBEDO = 1.16
+const ICE_MARIA_ALBEDO = 0.08
 const ALBEDO_ENCODE_RANGE = 2.5
 
 /**
  * E-ink window tuned to the logo: chalky highs, near-void maria blotches.
  * Strong dark power keeps the mottled midtones from washing into grey.
  */
-const EINK_MIN = 0.04
-const EINK_MAX = 0.92
-const EINK_DARK_POWER = 2.05
+const EINK_MIN = 0.02
+const EINK_MAX = 0.94
+const EINK_DARK_POWER = 2.35
 /** Extra crush on the lower half after the power curve (blotches / belts). */
-const EINK_BLOTCH_CEIL = 0.58
-const EINK_BLOTCH_SCALE = 0.62
+const EINK_BLOTCH_CEIL = 0.62
+const EINK_BLOTCH_SCALE = 0.48
 
 export type PlanetKind = 'moon' | 'jupiter' | 'venus' | 'ice'
 
@@ -296,7 +296,7 @@ function craterAlbedoProfile(dist: number, crater: CraterSpec) {
   if (t < crater.floorEnd) {
     const ft = t / crater.floorEnd
     // Stronger ponded-melt darkening so floors read as dark pits under e-ink.
-    a -= (0.22 + crater.darkFloor * 2.0) * (1 - ft * ft)
+    a -= (0.28 + crater.darkFloor * 2.4) * (1 - ft * ft)
   }
 
   return a
@@ -577,8 +577,8 @@ function buildJupiterFields() {
       heights[row + x] = (bands - 0.5) * 0.16 + warp * 0.035
       // Dark belts as logo-style blotches; bright zones stay chalky.
       albedo[row + x] =
-        0.14 +
-        bands * 0.72 +
+        0.06 +
+        bands * 0.82 +
         (sampleLayer(fineBand, u * 52, v * 28) - 0.5) * 0.1
     }
   }
@@ -617,7 +617,7 @@ function buildVenusFields() {
 
       heights[row + x] = (ridge - 0.5) * 0.09 + twist * 0.04
       // Dark filament troughs vs bright ridge crests — blotchy logo contrast.
-      albedo[row + x] = 0.12 + ridge * 0.78 + twist * 0.1
+      albedo[row + x] = 0.05 + ridge * 0.86 + twist * 0.1
     }
   }
 
