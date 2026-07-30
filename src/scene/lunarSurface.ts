@@ -14,8 +14,8 @@ import * as THREE from 'three'
  * layers that were supposed to supply fine detail were just aliased hash.
  */
 
-const WIDTH = 2048
-const HEIGHT = 1024
+const WIDTH = 3072
+const HEIGHT = 1536
 
 /**
  * Micro-relief is tiled rather than baked into the base map. At this repeat it
@@ -23,11 +23,11 @@ const HEIGHT = 1024
  * only way to stay crisp when a shell fills the frame. The u repeat must be a
  * whole number so the tile still meets itself at the longitude seam.
  */
-const DETAIL_SIZE = 512
-const DETAIL_REPEAT_U = 8
-const DETAIL_REPEAT_V = 4
+const DETAIL_SIZE = 768
+const DETAIL_REPEAT_U = 10
+const DETAIL_REPEAT_V = 5
 
-const ANISOTROPY = 12
+const ANISOTROPY = 16
 
 /**
  * Relative reflectance of the two terrain types. Absolute level does not matter:
@@ -980,13 +980,13 @@ const surfaceCache = new Map<PlanetKind, LunarSurface>()
 function normalStrengthFor(kind: PlanetKind): number {
   switch (kind) {
     case 'moon':
-      return 1.1
+      return 1.35
     case 'jupiter':
-      return 0.85
-    case 'venus':
-      return 0.65
-    case 'ice':
       return 1.05
+    case 'venus':
+      return 0.85
+    case 'ice':
+      return 1.28
     default: {
       const _exhaustive: never = kind
       throw new Error(`Unhandled planet kind: ${_exhaustive}`)

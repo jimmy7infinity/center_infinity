@@ -17,7 +17,7 @@ import { dprFor, type QualityTier } from '../lib/quality'
 
 function Effects({ tier }: { tier: QualityTier }) {
   const aberrationOffset = useMemo(
-    () => new THREE.Vector2(0.0004, 0.0007),
+    () => new THREE.Vector2(0.00025, 0.0004),
     [],
   )
 
@@ -25,11 +25,11 @@ function Effects({ tier }: { tier: QualityTier }) {
     return (
       <EffectComposer>
         <Bloom
-          intensity={0.72}
-          luminanceThreshold={0.17}
-          luminanceSmoothing={0.3}
+          intensity={0.42}
+          luminanceThreshold={0.28}
+          luminanceSmoothing={0.18}
           mipmapBlur
-          resolutionScale={0.4}
+          resolutionScale={0.55}
         />
         <Vignette offset={0.3} darkness={0.68} />
       </EffectComposer>
@@ -39,11 +39,11 @@ function Effects({ tier }: { tier: QualityTier }) {
   return (
     <EffectComposer multisampling={0}>
       <Bloom
-        intensity={0.8}
-        luminanceThreshold={0.15}
-        luminanceSmoothing={0.32}
+        intensity={0.48}
+        luminanceThreshold={0.26}
+        luminanceSmoothing={0.2}
         mipmapBlur
-        resolutionScale={0.4}
+        resolutionScale={0.65}
       />
       {/* The frost/glitch feel on the Igloo site comes from a very small
           radially-modulated aberration, not a large offset. */}
@@ -53,7 +53,7 @@ function Effects({ tier }: { tier: QualityTier }) {
         modulationOffset={0.42}
       />
       <Vignette offset={0.28} darkness={0.72} />
-      <Noise opacity={0.035} blendFunction={BlendFunction.OVERLAY} />
+      <Noise opacity={0.02} blendFunction={BlendFunction.OVERLAY} />
     </EffectComposer>
   )
 }

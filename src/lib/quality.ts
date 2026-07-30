@@ -41,13 +41,12 @@ export function detectQuality(): QualityTier {
 
 export function dprFor(tier: QualityTier): [number, number] {
   switch (tier) {
-    // Cap at 1x even on retina. All the text is DOM, so canvas density only
-    // softens bloom — not perceptible at these gradients — while these
-    // full-screen spheres are strictly fill-rate bound.
+    // Retina density keeps crater rims crisp; text is DOM so canvas DPR only
+    // pays for the spheres. Cap below 2× to stay fill-rate friendly.
     case 'high':
-      return [1, 1]
+      return [1, 1.75]
     case 'medium':
-      return [1, 1]
+      return [1, 1.25]
     case 'static':
       return [1, 1]
     default: {
