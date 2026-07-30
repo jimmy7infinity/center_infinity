@@ -1,8 +1,8 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Overlay } from './ui/Overlay'
 import { StaticBackdrop } from './ui/StaticBackdrop'
-import { EnterGate } from './ui/EnterGate'
 import { enterSite, useSmoothScroll } from './lib/scroll'
+import { usePointerTracking } from './lib/pointer'
 import { detectQuality, type QualityTier } from './lib/quality'
 
 // The 3D bundle is the heavy part, so it never blocks first paint of the copy.
@@ -26,11 +26,14 @@ export function App() {
 
   const webgl = tier === 'high' || tier === 'medium'
   useSmoothScroll(webgl, tier !== null)
+  usePointerTracking(webgl && entered)
 
-  const handleEnter = useCallback(() => {
+  // Skip the gate — warp intro starts as soon as the WebGL path is ready.
+  useEffect(() => {
+    if (!webgl || tier === null) return
     enterSite()
     setEntered(true)
-  }, [])
+  }, [webgl, tier])
 
   return (
     <>
@@ -41,7 +44,6 @@ export function App() {
           <Scene tier={tier} />
         </Suspense>
       )}
-      {webgl && !entered ? <EnterGate onEnter={handleEnter} /> : null}
       <Overlay />
     </>
   )

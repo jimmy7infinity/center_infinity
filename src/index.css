@@ -1,15 +1,25 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* A neo-grotesque for everything, and a mono for anything that reads as data.
+     The previous pairing leaned on an italic display serif, which is what made
+     the page read as decorative rather than as a studio that ships software. */
+  --font-sans: 'Switzer', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
 
-  --color-void: #121214;
-  --color-ash: #18181b;
-  --color-regolith: #8a8a8f;
-  --color-rim: #e8e8ea;
-  --color-glow: #b8c4d8;
+  /* Cold blue-void field. Text is cool silver, not neutral grey. */
+  --color-void: #0e1016;
+  --color-ash: #141820;
+  --color-regolith: #7e8aa0;
+  --color-rim: #dce6f4;
+  --color-glow: #a8bdd8;
+
+  /* Three signal colours, no more. They carry status and category so a section
+     can be read at a glance instead of parsed sentence by sentence, and they
+     stay off the planets, whose grey is deliberate. */
+  --color-live: #5ee0b0;
+  --color-beta: #f2b35e;
+  --color-demo: #7cc7f5;
 }
 
 @layer base {
@@ -24,7 +34,7 @@
     background-color: var(--color-void);
     color: var(--color-rim);
     font-family: var(--font-sans);
-    font-weight: 300;
+    font-weight: 400;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
@@ -51,14 +61,68 @@
   opacity: calc(1 - var(--warp-veil, 0));
 }
 
-/* Fine-grained letterspacing for the eyebrow labels. */
+/**
+ * Sticky nav keeps the crescent always on screen. Wordmark text only joins
+ * once you leave the hero (where the big mark already owns the brand).
+ */
+@utility header-mark {
+  opacity: var(--past-hero, 0);
+}
+
+/* The inverse: the scroll cue belongs to the hero and leaves with it. */
+@utility hero-cue {
+  opacity: calc(1 - var(--past-hero, 0));
+}
+
+/**
+ * Display type. Tight tracking at large sizes is most of what separates
+ * expensive-looking typography from default-looking typography — grotesques are
+ * spaced for body copy and always set too loose once they get big.
+ */
+@utility display {
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+}
+
+@utility display-lg {
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 0.94;
+}
+
+/* Eyebrows, data, and anything that should read as instrumentation. */
 @utility label {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.22em;
+  font-weight: 400;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-regolith);
+}
+
+/* The wordmark: wide tracking is the whole effect, so it scales with the type. */
+@utility wordmark {
+  font-weight: 400;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+}
+
+@keyframes hero-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility hero-caret {
+  animation: hero-caret-blink 1.05s steps(1, end) infinite;
+  height: 0.95em;
+  vertical-align: text-bottom;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -67,5 +131,10 @@
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .hero-caret {
+    animation: none;
+    opacity: 0;
   }
 }

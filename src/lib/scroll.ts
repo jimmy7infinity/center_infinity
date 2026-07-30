@@ -10,8 +10,18 @@ export const scrollState = {
    * its tableau is exactly composed; fractions interpolate between neighbours.
    */
   beat: 0,
-  /** Hyperjump amount, 0..1. */
+  /**
+   * How stretched the starfield is, 0..1. Fast scrolling anywhere contributes,
+   * so this is a motion cue as much as a beat.
+   */
   warp: 0,
+  /**
+   * The actual hyperjump, 0..1 — the runway, the loop flash, and the intro, but
+   * *not* the velocity stretch. Solid bodies clear out on this rather than on
+   * `warp`, so scrolling quickly through the work sections doesn't dissolve the
+   * planets it is meant to be showing off.
+   */
+  jump: 0,
 }
 
 /** Beats of runway over which the warp builds before the final anchor. */
@@ -38,6 +48,65 @@ let entered = false
 
 const INTRO_HOLD_MS = 1800
 const INTRO_EASE_MS = 1400
+
+/**
+ * Continuous magnetism — midpoints between sections are unstable.
+ * While the user is scrolling they can pass through; the moment input stops,
+ * scroll is pulled toward the nearer anchor every frame (no settle pause,
+ * no separate "snap animation" that starts after a dead stop).
+ */
+const MAGNET_STRENGTH = 16
+/** After the last wheel/touch/key, wait this long before the magnet engages. */
+const INPUT_GRACE_SECONDS = 0.06
+/** Landed close enough to count as on-composition. */
+const SNAP_MIN_PX = 1.5
+
+let lastInputAt = 0
+
+/**
+ * Magnetism yields to intent. Any real input opens a grace window where the
+ * user owns the scroll; the pull resumes as soon as that window ends.
+ */
+function noteInput() {
+  lastInputAt = performance.now()
+}
+
+function nearestAnchorIndex(scrollY: number) {
+  let best = 0
+  let bestDist = Infinity
+  for (let i = 0; i < anchors.length; i++) {
+    const dist = Math.abs(anchors[i] - scrollY)
+    if (dist < bestDist) {
+      bestDist = dist
+      best = i
+    }
+  }
+  return best
+}
+
+function tickMagnetism(lenis: Lenis, delta: number) {
+  if (!entered || anchors.length === 0) return
+  if ((performance.now() - lastInputAt) / 1000 < INPUT_GRACE_SECONDS) return
+
+  const y = lenis.scroll ?? window.scrollY
+  const nearest = nearestAnchorIndex(y)
+
+  // Warp runway stays free-scroll into the loop.
+  if (nearest >= LAST_BEAT) return
+
+  const target = anchors[nearest]
+  const error = target - y
+  if (Math.abs(error) < SNAP_MIN_PX) {
+    if (Math.abs(error) > 0.05) {
+      lenis.scrollTo(target, { immediate: true, force: true })
+    }
+    return
+  }
+
+  // Exponential approach every frame — continuous magnet, not a delayed snap.
+  const pull = 1 - Math.exp(-MAGNET_STRENGTH * delta)
+  lenis.scrollTo(y + error * pull, { immediate: true, force: true })
+}
 
 export function getLenis() {
   return lenisInstance
@@ -104,7 +173,8 @@ function refreshWarp() {
     VELOCITY_WARP_CEILING,
     Math.abs(scrollState.velocity) * VELOCITY_WARP_SCALE,
   )
-  scrollState.warp = Math.max(sectionWarp, velocityWarp, flash, introWarp)
+  scrollState.jump = Math.max(sectionWarp, flash, introWarp)
+  scrollState.warp = Math.max(scrollState.jump, velocityWarp)
 
   // Dissolves the DOM copy into the streaks near peak warp. Written as a CSS
   // variable rather than React state so it costs nothing per frame — and it is
@@ -127,6 +197,13 @@ function applyScroll(y: number, velocity: number) {
   scrollState.velocity = velocity
   scrollState.beat = beatFromScroll(y)
   sectionWarp = smoothstep(LAST_BEAT - WARP_BEAT_LEAD, LAST_BEAT, scrollState.beat)
+
+  // The hero *is* the wordmark, so the nav only claims it once we leave.
+  document.documentElement.style.setProperty(
+    '--past-hero',
+    smoothstep(0.25, 0.7, scrollState.beat).toFixed(3),
+  )
+
   refreshWarp()
 }
 
@@ -252,12 +329,23 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       touchMultiplier: 1.5,
     })
     lenisInstance = lenis
-    lenis.stop()
+    // enterSite may have already run in the same tick; honour that so the
+    // intro warp isn't stuck behind a stopped scroller.
+    if (entered) {
+      lenis.start()
+    } else {
+      lenis.stop()
+    }
 
     lenis.on('scroll', (instance: Lenis) => {
       applyScroll(instance.scroll ?? window.scrollY, instance.velocity ?? 0)
     })
     applyScroll(window.scrollY, 0)
+
+    window.addEventListener('wheel', noteInput, { passive: true })
+    window.addEventListener('touchstart', noteInput, { passive: true })
+    window.addEventListener('touchmove', noteInput, { passive: true })
+    window.addEventListener('keydown', noteInput)
 
     let frame = 0
     let previousTime = performance.now()
@@ -271,6 +359,7 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       if (flash > 0) flash = Math.max(0, flash - delta / LOOP_FLASH_SECONDS)
       tickIntroWarp(delta * 1000)
       refreshWarp()
+      tickMagnetism(lenis, delta)
       tryLoop(lenis)
 
       frame = requestAnimationFrame(loop)
@@ -281,6 +370,10 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       cancelAnimationFrame(frame)
       observer.disconnect()
       window.removeEventListener('resize', measureAnchors)
+      window.removeEventListener('wheel', noteInput)
+      window.removeEventListener('touchstart', noteInput)
+      window.removeEventListener('touchmove', noteInput)
+      window.removeEventListener('keydown', noteInput)
       lenis.destroy()
       lenisInstance = null
       flash = 0

@@ -70,11 +70,11 @@ export function Scene({ tier }: { tier: QualityTier }) {
       }}
       camera={{ position: [0, 0, 27], fov: 42, near: 0.1, far: 200 }}
     >
-      <color attach="background" args={['#121214']} />
+      <color attach="background" args={['#0e1016']} />
       {/* No scene lights: every surface carries its own light direction so the
           four shells can be lit independently, the way the logo is. */}
       <Shells />
-      <Starfield count={tier === 'high' ? 1600 : 700} />
+      <Starfield count={tier === 'high' ? 1100 : 550} />
       <DriftingRocks />
       <ShootingStars />
       <Effects tier={tier} />

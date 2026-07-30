@@ -7,7 +7,7 @@ import {
   getShellMaterialUniforms,
 } from './shellMaterial'
 
-const POOL_SIZE = 10
+const POOL_SIZE = 5
 
 /**
  * Distance from the camera, in world units. A single near band keeps debris
@@ -228,9 +228,8 @@ function activateRock(rock: Rock, camera: THREE.PerspectiveCamera) {
   // they share space with the shells instead of sitting behind them.
   rock.duration = (16 + Math.random() * 12) * (0.5 + distance / 26)
   // Scaled with depth so a rock stays rock-sized on screen at any distance
-  // instead of becoming a second moon up close. The band works out to roughly
-  // 2–8% of frame height whatever the depth.
-  rock.scale = distance * (0.009 + Math.random() * 0.021)
+  // instead of becoming a second moon up close.
+  rock.scale = distance * (0.0045 + Math.random() * 0.010)
 
   rock.tumbleSpeed.set(
     (Math.random() - 0.5) * 0.16,
@@ -266,9 +265,9 @@ export function DriftingRocks() {
   const material = useMemo(
     () =>
       createShellMaterial({
-        tint: '#8d94a2',
+        tint: '#7e8798',
         lightDir: SUN_DIR,
-        lightColor: '#e8edf8',
+        lightColor: '#dce6f5',
         // Deliberately dimmer than the shells' effective 1.4–1.8. Rocks now
         // cross in front of lit crescents, and one that out-shines the moon
         // behind it reads as a pasted-on shard; darker, it reads as a
@@ -278,7 +277,7 @@ export function DriftingRocks() {
         // collapses to a single bright pixel edge.
         terminator: 0.3,
         ambient: 0.05,
-        voidColor: '#121214',
+        voidColor: '#0e1016',
         opacity: 1,
       }),
     [],
@@ -299,20 +298,24 @@ export function DriftingRocks() {
   )
 
   useFrame((state, delta) => {
-    // Static debris would look wrong against streaking stars, so it clears out
-    // for the duration of the warp.
-    uniforms.uOpacity.value = 1 - scrollState.warp
+    // Debris drifting at walking pace across a hyperjump reads as a bug, and a
+    // rock at zero opacity is still an opaque void-coloured body that occludes
+    // the streaks behind it. So the fade is quick, and it ends in a hard cull.
+    const jumpFade = 1 - THREE.MathUtils.smoothstep(scrollState.jump, 0.05, 0.35)
+    uniforms.uOpacity.value = jumpFade
+    const cleared = jumpFade <= 0.01
 
     const camera = state.camera
     if (!(camera instanceof THREE.PerspectiveCamera)) return
 
     spawnTimerRef.current -= delta
-    if (spawnTimerRef.current <= 0) {
+    // Spawning through the jump is what leaves rocks mid-flight on the way out.
+    if (spawnTimerRef.current <= 0 && !cleared) {
       const inactive = rocksRef.current.find((rock) => !rock.active)
       if (inactive) {
         activateRock(inactive, camera)
       }
-      spawnTimerRef.current = 2.2 + Math.random() * 2.8
+      spawnTimerRef.current = 4.5 + Math.random() * 5.5
     }
 
     const rocks = rocksRef.current
@@ -321,7 +324,7 @@ export function DriftingRocks() {
       const mesh = meshRefs.current[i]
       if (!mesh) continue
 
-      if (!rock.active) {
+      if (!rock.active || cleared) {
         mesh.visible = false
         continue
       }
