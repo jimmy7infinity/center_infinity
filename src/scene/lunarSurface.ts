@@ -34,22 +34,23 @@ const ANISOTROPY = 12
  * the map is rescaled so its mean is exactly 1.0, which keeps the shell
  * keyframe intensities calibrated no matter how this contrast is retuned.
  */
-const HIGHLAND_ALBEDO = 1.04
-/** Maria / dark basalt — kept well below highlands so basins read as dark pools. */
-const MARIA_ALBEDO = 0.3
-const ICE_HIGHLAND_ALBEDO = 1.12
-const ICE_MARIA_ALBEDO = 0.36
+const HIGHLAND_ALBEDO = 1.08
+/** Maria / dark basalt — logo-dark blotches on the lit crescent. */
+const MARIA_ALBEDO = 0.12
+const ICE_HIGHLAND_ALBEDO = 1.14
+const ICE_MARIA_ALBEDO = 0.16
 const ALBEDO_ENCODE_RANGE = 2.5
 
 /**
- * E-ink window. Floor is low enough for crater floors and maria to read dark,
- * ceiling soft so highlights stay chalky rather than blown-out white. A power
- * curve on the normalised albedo (see albedoToCanvas) pulls more mass into
- * the dark end without dropping the void back to pure black.
+ * E-ink window tuned to the logo: chalky highs, near-void maria blotches.
+ * Strong dark power keeps the mottled midtones from washing into grey.
  */
-const EINK_MIN = 0.06
-const EINK_MAX = 0.9
-const EINK_DARK_POWER = 1.65
+const EINK_MIN = 0.04
+const EINK_MAX = 0.92
+const EINK_DARK_POWER = 2.05
+/** Extra crush on the lower half after the power curve (blotches / belts). */
+const EINK_BLOTCH_CEIL = 0.58
+const EINK_BLOTCH_SCALE = 0.62
 
 export type PlanetKind = 'moon' | 'jupiter' | 'venus' | 'ice'
 
@@ -295,7 +296,7 @@ function craterAlbedoProfile(dist: number, crater: CraterSpec) {
   if (t < crater.floorEnd) {
     const ft = t / crater.floorEnd
     // Stronger ponded-melt darkening so floors read as dark pits under e-ink.
-    a -= (0.18 + crater.darkFloor * 1.8) * (1 - ft * ft)
+    a -= (0.22 + crater.darkFloor * 2.0) * (1 - ft * ft)
   }
 
   return a
@@ -490,10 +491,11 @@ function buildBaseFields() {
     for (let x = 0; x < WIDTH; x++) {
       const u = x / WIDTH
 
-      const maria = smoothstep(0.34, 0.66, sampleLayer(mariaMask, u, v))
+      const maria = smoothstep(0.28, 0.58, sampleLayer(mariaMask, u, v))
       const highland = 1 - maria
       const cont = sampleLayer(continental, u, v)
       const reg = sampleLayer(regolith, u, v)
+      const mott = sampleLayer(mottle, u, v)
 
       const mariaRelief =
         cont * 0.05 + sampleLayer(mariaDetail, u, v) * 0.09 + reg * 0.05
@@ -502,12 +504,14 @@ function buildBaseFields() {
 
       heights[row + x] = mariaRelief * maria + highlandRelief * highland
 
+      // Logo read: bright cratered highlands, near-black blotchy maria, with
+      // extra mottle inside the dark plains so they are not flat puddles.
       albedo[row + x] =
         HIGHLAND_ALBEDO * highland +
         MARIA_ALBEDO * maria +
-        (sampleLayer(mottle, u, v) - 0.5) * 0.09 +
-        (cont - 0.5) * 0.06 +
-        (reg - 0.5) * 0.05 * highland
+        (mott - 0.5) * (0.06 * highland + 0.22 * maria) +
+        (cont - 0.5) * 0.05 +
+        (reg - 0.5) * 0.04 * highland
     }
   }
 
@@ -571,11 +575,11 @@ function buildJupiterFields() {
         sampleLayer(fineBand, bandCoord * 0.17, v * 1.8) * 0.38
 
       heights[row + x] = (bands - 0.5) * 0.16 + warp * 0.035
-      // Wider band contrast so dark belts sit well below bright zones.
+      // Dark belts as logo-style blotches; bright zones stay chalky.
       albedo[row + x] =
-        0.4 +
-        bands * 0.48 +
-        (sampleLayer(fineBand, u * 52, v * 28) - 0.5) * 0.08
+        0.14 +
+        bands * 0.72 +
+        (sampleLayer(fineBand, u * 52, v * 28) - 0.5) * 0.1
     }
   }
 
@@ -612,7 +616,8 @@ function buildVenusFields() {
       const twist = (sampleLayer(swirl, u * 3.2, v * 2.8) - 0.5) * 0.12
 
       heights[row + x] = (ridge - 0.5) * 0.09 + twist * 0.04
-      albedo[row + x] = 0.4 + ridge * 0.5 + twist * 0.09
+      // Dark filament troughs vs bright ridge crests — blotchy logo contrast.
+      albedo[row + x] = 0.12 + ridge * 0.78 + twist * 0.1
     }
   }
 
@@ -638,11 +643,12 @@ function buildIceFields() {
     for (let x = 0; x < WIDTH; x++) {
       const u = x / WIDTH
 
-      const maria = smoothstep(0.38, 0.62, sampleLayer(mariaMask, u, v))
+      const maria = smoothstep(0.3, 0.56, sampleLayer(mariaMask, u, v))
       const highland = 1 - maria
       const cont = sampleLayer(continental, u, v)
       const reg = sampleLayer(regolith, u, v)
       const micro = sampleLayer(frost, u, v)
+      const mott = sampleLayer(mottle, u, v)
 
       const mariaRelief =
         cont * 0.04 + sampleLayer(mariaDetail, u, v) * 0.07 + reg * 0.04
@@ -657,10 +663,10 @@ function buildIceFields() {
       albedo[row + x] =
         ICE_HIGHLAND_ALBEDO * highland +
         ICE_MARIA_ALBEDO * maria +
-        (sampleLayer(mottle, u, v) - 0.5) * 0.08 +
-        (cont - 0.5) * 0.05 +
-        (reg - 0.5) * 0.04 * highland +
-        (micro - 0.5) * 0.06
+        (mott - 0.5) * (0.05 * highland + 0.2 * maria) +
+        (cont - 0.5) * 0.04 +
+        (reg - 0.5) * 0.03 * highland +
+        (micro - 0.5) * 0.05 * highland
     }
   }
 
@@ -861,8 +867,12 @@ function albedoToCanvas(albedo: Float32Array, kind: PlanetKind): HTMLCanvasEleme
 
   for (let i = 0; i < albedo.length; i++) {
     const t = (normalized[i] - min) / span
-    // Power > 1 deepens maria and crater floors while keeping bright rims.
-    const shaped = Math.pow(t, EINK_DARK_POWER)
+    // Power > 1 deepens maria blotches while keeping bright crater rims.
+    let shaped = Math.pow(t, EINK_DARK_POWER)
+    // Second crush on the lower half so mottled plains stay near-void grey.
+    if (shaped < EINK_BLOTCH_CEIL) {
+      shaped *= EINK_BLOTCH_SCALE
+    }
     const curved = EINK_MIN + shaped * (EINK_MAX - EINK_MIN)
     const biased = applyEinkBias(kind, curved)
     const encoded = Math.round(
