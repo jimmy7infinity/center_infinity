@@ -34,23 +34,27 @@ const ANISOTROPY = 16
  * the map is rescaled so its mean is exactly 1.0, which keeps the shell
  * keyframe intensities calibrated no matter how this contrast is retuned.
  */
-const HIGHLAND_ALBEDO = 1.1
+const HIGHLAND_ALBEDO = 1.12
 /** Maria / dark basalt — logo-dark blotches on the lit crescent. */
-const MARIA_ALBEDO = 0.05
-const ICE_HIGHLAND_ALBEDO = 1.16
-const ICE_MARIA_ALBEDO = 0.08
+const MARIA_ALBEDO = 0.08
+const ICE_HIGHLAND_ALBEDO = 1.18
+const ICE_MARIA_ALBEDO = 0.1
 const ALBEDO_ENCODE_RANGE = 2.5
 
 /**
- * E-ink window tuned to the logo: chalky highs, near-void maria blotches.
- * Strong dark power keeps the mottled midtones from washing into grey.
+ * E-ink window: chalky highs stay bright; only the lowest third (maria
+ * blotches / belts) is crushed toward void. A global power curve was washing
+ * the whole crescent dark — that stays mild on purpose.
  */
-const EINK_MIN = 0.02
-const EINK_MAX = 0.94
-const EINK_DARK_POWER = 2.35
-/** Extra crush on the lower half after the power curve (blotches / belts). */
-const EINK_BLOTCH_CEIL = 0.62
-const EINK_BLOTCH_SCALE = 0.48
+const EINK_MIN = 0.03
+const EINK_MAX = 0.95
+const EINK_DARK_POWER = 1.25
+/** Only values below this (after the mild power) get the blotch crush. */
+const EINK_BLOTCH_CEIL = 0.38
+const EINK_BLOTCH_SCALE = 0.42
+/** Lift the upper half so highlands/rims stay chalky against dark plains. */
+const EINK_HIGH_FLOOR = 0.52
+const EINK_HIGH_BOOST = 1.08
 
 export type PlanetKind = 'moon' | 'jupiter' | 'venus' | 'ice'
 
@@ -867,11 +871,14 @@ function albedoToCanvas(albedo: Float32Array, kind: PlanetKind): HTMLCanvasEleme
 
   for (let i = 0; i < albedo.length; i++) {
     const t = (normalized[i] - min) / span
-    // Power > 1 deepens maria blotches while keeping bright crater rims.
+    // Mild global curve — keeps mid/highlands from collapsing with the plains.
     let shaped = Math.pow(t, EINK_DARK_POWER)
-    // Second crush on the lower half so mottled plains stay near-void grey.
     if (shaped < EINK_BLOTCH_CEIL) {
+      // Only the darkest blotches / belts get pulled toward void.
       shaped *= EINK_BLOTCH_SCALE
+    } else if (shaped > EINK_HIGH_FLOOR) {
+      // Chalky rims and highlands — push back toward the top of the window.
+      shaped = Math.min(1, shaped * EINK_HIGH_BOOST)
     }
     const curved = EINK_MIN + shaped * (EINK_MAX - EINK_MIN)
     const biased = applyEinkBias(kind, curved)
