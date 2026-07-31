@@ -5,8 +5,10 @@ import { scrollState } from '../lib/scroll'
 
 const POOL_SIZE = 2
 
-/** Sky band outside the shell cluster — meteors stay in the backdrop. */
+/** Backdrop meteors (legacy) — behind shells. */
 const SKY_DISTANCE = 38
+/** Foreground meteors — between camera and DOM / shells so they cross copy. */
+const CROSS_DISTANCE = 4.2
 
 type Meteor = {
   active: boolean
@@ -39,23 +41,22 @@ const travelDirection = new THREE.Vector3()
 function activateMeteor(
   meteor: Meteor,
   camera: THREE.PerspectiveCamera,
-  /** 0 at hero — keep streaks out of the wordmark band. */
-  beat: number,
+  crossText: boolean,
 ) {
-  const distance = SKY_DISTANCE + Math.random() * 18
+  const distance = crossText
+    ? CROSS_DISTANCE + Math.random() * 2.4
+    : SKY_DISTANCE + Math.random() * 18
   const frameHeight = 2 * distance * Math.tan((camera.fov * Math.PI) / 360)
   const frameWidth = frameHeight * camera.aspect
 
-  // On the hero, bias to the upper corners so streaks don't cross the mark.
-  const heroGuard = 1 - THREE.MathUtils.smoothstep(0.15, 0.85, beat)
-  const fx =
-    Math.random() < 0.5
-      ? 0.04 + Math.random() * (0.22 + (1 - heroGuard) * 0.2)
-      : 0.74 - (1 - heroGuard) * 0.2 + Math.random() * (0.22 + (1 - heroGuard) * 0.2)
-  const fy =
-    heroGuard > 0.4
-      ? 0.04 + Math.random() * 0.28
-      : 0.06 + Math.random() * 0.72
+  const fx = crossText
+    ? 0.08 + Math.random() * 0.84
+    : Math.random() < 0.5
+      ? 0.04 + Math.random() * 0.22
+      : 0.74 + Math.random() * 0.22
+  const fy = crossText
+    ? 0.12 + Math.random() * 0.76
+    : 0.04 + Math.random() * 0.28
 
   const pitch = (Math.random() - 0.5) * 0.55 - 0.15
   travelDirection
@@ -77,19 +78,19 @@ function activateMeteor(
   meteor.active = true
 }
 
-/** Sparse bright streaks across the sky; muted during warp. */
-export function ShootingStars() {
+/** Sparse bright streaks; `crossText` places them above DOM copy. */
+export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
   const meteorsRef = useRef<Meteor[]>([])
-  const spawnTimerRef = useRef(4 + Math.random() * 3)
+  const spawnTimerRef = useRef(3 + Math.random() * 2)
   const head = useMemo(() => new THREE.Vector3(), [])
   const tail = useMemo(() => new THREE.Vector3(), [])
 
   const material = useMemo(
     () =>
       new THREE.LineBasicMaterial({
-        color: '#eef2ff',
+        color: '#dce6f4',
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         depthWrite: false,
         depthTest: true,
         blending: THREE.AdditiveBlending,
@@ -121,20 +122,18 @@ export function ShootingStars() {
     const camera = state.camera
     if (!(camera instanceof THREE.PerspectiveCamera)) return
 
-    // A meteor crawling across a field of hyperjump streaks is the thing that
-    // gives the jump away, so it clears well before the streaks take hold.
     const warpFade = 1 - THREE.MathUtils.smoothstep(scrollState.jump, 0.04, 0.3)
-    // Dim on the hero so streaks can't overpower the wordmark even if one clips near.
-    const heroFade = THREE.MathUtils.smoothstep(0.05, 0.55, scrollState.beat)
-    material.opacity = 0.85 * warpFade * (0.35 + 0.65 * heroFade)
+    material.opacity = (crossText ? 0.95 : 0.85) * warpFade
 
     spawnTimerRef.current -= delta
     if (spawnTimerRef.current <= 0 && warpFade > 0.05) {
       const inactive = meteorsRef.current.find((meteor) => !meteor.active)
       if (inactive) {
-        activateMeteor(inactive, camera, scrollState.beat)
+        activateMeteor(inactive, camera, crossText)
       }
-      spawnTimerRef.current = 10 + Math.random() * 10
+      spawnTimerRef.current = crossText
+        ? 6 + Math.random() * 7
+        : 10 + Math.random() * 10
     }
 
     for (const meteor of meteorsRef.current) {

@@ -466,63 +466,88 @@ void main() {
   density = pow(clamp(density, 0.0, 1.0), 1.05) * envelope;
 
   float cover = clamp(density, 0.0, 1.0);
-  rgb *= 1.0 - cover * 0.42 * uOpacity;
-  // Steel-blue vapour — colder than the rock, sits with rim/glow without painting it.
-  vec3 vapour = mix(uTint, vec3(0.42, 0.50, 0.62), 0.78);
-  vapour *= 0.48 + 0.52 * albedo;
-  // Slightly darker rainbands / brighter overcast patches.
-  vapour *= 0.78 + 0.30 * billow - 0.14 * bands;
-  rgb = mix(rgb, vapour, cover * 0.58 * uOpacity);
+  // Chalky cool-white cloud body — bright enough to read as weather on the rock,
+  // with cooler slate troughs in the rainbands (not steel-blue paint, not a lamp).
+  vec3 cloudHiCol = vec3(0.96, 0.98, 1.0);
+  vec3 cloudLoCol = vec3(0.55, 0.60, 0.70);
+  float loft = clamp(billow * 0.55 + denseCore * 0.55, 0.0, 1.0);
+  vec3 vapour = mix(cloudLoCol, cloudHiCol, loft);
+  vapour = mix(vapour, cloudLoCol, bands * 0.45); // rainbands stay greyer
+  // Keep a whisper of the planet tint so it sits on the surface.
+  vapour = mix(uTint * 1.15, vapour, 0.92);
+  vapour *= 0.72 + 0.28 * albedo;
+  // Soft under-shadow, then opaque chalk overpaint — the overpaint is what reads.
+  rgb *= 1.0 - cover * 0.22 * uOpacity;
+  rgb = mix(rgb, vapour, cover * 0.82 * uOpacity);
 
-  // Thin lightning filaments — jagged, random segment lengths, short flashes.
-  float bolt = 0.0;
-  float flashGate = step(0.78, stormHash11(floor(uTime * 11.0) + 19.0 + seed));
-  float flashGate2 = step(0.88, stormHash11(floor(uTime * 7.3) + 41.0 + seed));
-  float flash = max(flashGate, flashGate2 * 0.7) * (0.55 + 0.45 * uDwell) * smoothstep(0.35, 0.8, grow);
+  // Lightning — rare, mostly ice-blue; violet/orange only occasionally.
+  // Long hairlines (world-constant thinness) plus a soft emit glow on the cloud.
+  vec3 boltRgb = vec3(0.0);
+  vec3 boltLight = vec3(0.0);
+  float flashGate = step(0.91, stormHash11(floor(uTime * 3.2) + 19.0 + seed));
+  float flashGate2 = step(0.96, stormHash11(floor(uTime * 2.1) + 41.0 + seed));
+  float flash = max(flashGate, flashGate2 * 0.75) * smoothstep(0.4, 0.85, grow);
   if (flash > 0.01) {
-    for (int i = 0; i < 5; i++) {
+    vec3 toneBlue = vec3(0.55, 0.82, 1.25);
+    vec3 toneViolet = vec3(0.88, 0.55, 1.2);
+    vec3 toneOrange = vec3(1.2, 0.68, 0.35);
+
+    for (int i = 0; i < 4; i++) {
       float fi = float(i);
-      float boltSeed = floor(uTime * (2.0 + fi * 0.37)) + fi * 17.0 + seed * 3.0;
+      float boltSeed = floor(uTime * (1.1 + fi * 0.21)) + fi * 17.0 + seed * 3.0;
       float h0 = stormHash11(boltSeed + 1.1);
       float h1 = stormHash11(boltSeed + 2.3);
       float h2 = stormHash11(boltSeed + 3.7);
       float h3 = stormHash11(boltSeed + 5.9);
+      float hTone = stormHash11(boltSeed + 8.4);
 
-      // Gate some bolts (no continue — keep WebGL1-friendly).
-      float live = step(0.45, h0);
+      // Most candidate slots stay dark — keep flashes sparse.
+      float live = step(0.62, h0);
 
       float baseAng = h1 * TAU;
       float twist = (h2 - 0.5) * 1.8;
-      // Jagged angular path along radius.
       float jag = (stormVnoise(vec2(r * 14.0 + boltSeed * 0.1, fi * 2.7)) - 0.5) * 0.55;
       jag += (stormVnoise(vec2(r * 28.0, boltSeed)) - 0.5) * 0.22;
       float pathAng = baseAng + r * twist + jag;
 
       float dAng = abs(atan(sin(ang - pathAng), cos(ang - pathAng)));
-      float thickness = 0.006 + h3 * 0.012; // very thin
+      // Hairline in world space — same thinness on every planet size.
+      float thickness = (0.0016 + h3 * 0.0011) / max(uCursorRange, 1e-3);
       float line = exp(-(dAng * dAng) / (thickness * thickness));
+      // Soft emit — lights the cloud around the filament without thickening it.
+      float emit = exp(-(dAng * dAng) / (thickness * thickness * 140.0));
 
-      // Random radial segment (broken bolts, not full spokes).
-      float seg0 = 0.12 + h2 * 0.45;
-      float segLen = 0.12 + h3 * 0.55;
-      float seg1 = seg0 + segLen;
-      float along = smoothstep(seg0, seg0 + 0.025, r) * (1.0 - smoothstep(seg1 - 0.02, seg1, r));
+      // Long strokes across most of the cell (not short ticks).
+      float seg0 = 0.04 + h2 * 0.12;
+      float segLen = 0.55 + h3 * 0.55;
+      float seg1 = min(1.05, seg0 + segLen);
+      float along = smoothstep(seg0, seg0 + 0.03, r) * (1.0 - smoothstep(seg1 - 0.04, seg1, r));
 
-      // Occasional short branch off the main path.
       float bAng = pathAng + (h0 - 0.5) * 0.9;
       float bd = abs(atan(sin(ang - bAng), cos(ang - bAng)));
-      float b0 = seg0 + h2 * segLen * 0.5;
-      float b1 = b0 + 0.08 + h3 * 0.18;
-      float bAlong = smoothstep(b0, b0 + 0.02, r) * (1.0 - smoothstep(b1 - 0.015, b1, r));
-      float branch = exp(-(bd * bd) / (thickness * thickness * 1.4)) * bAlong * 0.65 * step(0.55, h1);
+      float b0 = seg0 + h2 * segLen * 0.35;
+      float b1 = b0 + 0.18 + h3 * 0.35;
+      float bAlong = smoothstep(b0, b0 + 0.02, r) * (1.0 - smoothstep(b1 - 0.02, b1, r));
+      float branch = exp(-(bd * bd) / (thickness * thickness * 1.6)) * bAlong * 0.55 * step(0.7, h1);
+      float branchEmit = exp(-(bd * bd) / (thickness * thickness * 140.0)) * bAlong * 0.45 * step(0.7, h1);
 
-      bolt += (line * along + branch) * (0.55 + h0 * 0.45) * live;
+      float strength = (line * along + branch) * (0.7 + h0 * 0.45) * live;
+      float lightAmt = (emit * along + branchEmit) * (0.55 + h0 * 0.35) * live;
+
+      // ~82% blue, ~12% violet, ~6% orange.
+      vec3 tone = toneBlue;
+      tone = mix(tone, toneViolet, step(0.82, hTone));
+      tone = mix(tone, toneOrange, step(0.94, hTone));
+
+      boltRgb += tone * strength;
+      boltLight += tone * lightAmt;
     }
   }
-  bolt = clamp(bolt * flash * envelope, 0.0, 1.5);
-  // Ice-blue filaments — kin to --color-demo / glow, not pure white.
-  vec3 lightning = vec3(0.68, 0.82, 1.0);
-  rgb += lightning * bolt * 0.5 * uOpacity;
+  boltRgb = clamp(boltRgb * flash * envelope, 0.0, 2.4);
+  boltLight = clamp(boltLight * flash * envelope, 0.0, 1.2);
+  // Core filament + bloom-catching HDR spike; emit washes the surrounding vapour.
+  rgb += boltRgb * 1.15 * uOpacity;
+  rgb += boltLight * 0.55 * uOpacity;
 #endif
 
   gl_FragColor = vec4(rgb, 1.0);

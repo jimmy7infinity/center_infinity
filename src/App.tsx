@@ -1,11 +1,11 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { Overlay } from './ui/Overlay'
 import { StaticBackdrop } from './ui/StaticBackdrop'
+import { LoadingScreen } from './ui/LoadingScreen'
 import { enterSite, useSmoothScroll } from './lib/scroll'
 import { usePointerTracking } from './lib/pointer'
 import { detectQuality, type QualityTier } from './lib/quality'
 
-// The 3D bundle is the heavy part, so it never blocks first paint of the copy.
 const Scene = lazy(() =>
   import('./scene/Scene').then((m) => ({ default: m.Scene })),
 )
@@ -13,38 +13,48 @@ const Scene = lazy(() =>
 export function App() {
   const [tier, setTier] = useState<QualityTier | null>(null)
   const [entered, setEntered] = useState(false)
+  const [sceneReady, setSceneReady] = useState(false)
 
   useEffect(() => {
     setTier(detectQuality())
   }, [])
 
-  useEffect(() => {
-    if (tier === 'static') {
-      setEntered(true)
-    }
-  }, [tier])
-
   const webgl = tier === 'high' || tier === 'medium'
   useSmoothScroll(webgl, tier !== null)
   usePointerTracking(webgl && entered)
 
-  // Skip the gate — warp intro starts as soon as the WebGL path is ready.
+  // Static path — no warp intro; dismiss loader once tier is known.
   useEffect(() => {
-    if (!webgl || tier === null) return
+    if (tier !== 'static') return
+    setSceneReady(true)
+    setEntered(true)
+  }, [tier])
+
+  const onSceneReady = useCallback(() => {
+    setSceneReady(true)
+  }, [])
+
+  // Start the warp the moment the scene has drawn — not while the chunk is still loading.
+  useEffect(() => {
+    if (!webgl || !sceneReady || entered) return
     enterSite()
     setEntered(true)
-  }, [webgl, tier])
+  }, [webgl, sceneReady, entered])
+
+  const showLoader = tier === null || (webgl && !sceneReady)
 
   return (
     <>
+      <LoadingScreen visible={showLoader} />
       {tier === 'static' || tier === null ? (
         <StaticBackdrop />
       ) : (
         <Suspense fallback={<StaticBackdrop />}>
-          <Scene tier={tier} />
+          <Scene tier={tier} onReady={onSceneReady} />
         </Suspense>
       )}
-      <Overlay />
+      {/* Keep copy mounted under the loader so anchors/Lenis measure correctly. */}
+      <Overlay showChrome={entered && !showLoader} />
     </>
   )
 }

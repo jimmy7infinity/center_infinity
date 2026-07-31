@@ -18,6 +18,8 @@ export type Project = {
   stack: string[]
   status: ProjectStatus
   href?: string
+  /** Hero-frame capture of the live product, under /public/projects. */
+  image?: string
   /**
    * Reserved slot rather than shipped work. Rendered with a visibly provisional
    * treatment so it can't be mistaken for a real case study before it's filled.
@@ -40,6 +42,8 @@ export const projects: Project[] = [
     categories: ['AI', 'Search'],
     stack: ['React', 'TypeScript', 'Express', 'Playwright', 'Vitest'],
     status: 'beta',
+    href: 'https://hireloop.up.railway.app',
+    image: '/projects/hireloop.jpg',
   },
   {
     index: '02',
@@ -55,6 +59,8 @@ export const projects: Project[] = [
     categories: ['Consumer', 'Social'],
     stack: ['Next.js', 'MongoDB', 'Cloudflare R2', 'Railway'],
     status: 'shipping',
+    href: 'https://dispose.up.railway.app',
+    image: '/projects/dispose.jpg',
   },
   {
     index: '03',
@@ -66,6 +72,8 @@ export const projects: Project[] = [
     categories: ['Marketplace', 'Payments'],
     stack: ['Next.js', 'FastAPI', 'MongoDB', 'Stripe', 'Cloudinary'],
     status: 'demo',
+    href: 'https://lookinglocal.up.railway.app',
+    image: '/projects/locus.jpg',
   },
   {
     index: '04',

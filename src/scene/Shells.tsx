@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { scrollState, getIntroArrive, hasEntered } from '../lib/scroll'
+import { publishCamera } from '../lib/cameraBridge'
 import { pointerState } from '../lib/pointer'
 import { createPlanetSurface } from './lunarSurface'
 import {
@@ -601,6 +602,11 @@ function CameraRig() {
     }
 
     camera.lookAt(lookTarget)
+    publishCamera(
+      camera.position,
+      lookTarget,
+      camera instanceof THREE.PerspectiveCamera ? camera.fov : fovRef.current,
+    )
   })
 
   return null

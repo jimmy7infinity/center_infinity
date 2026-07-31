@@ -32,7 +32,6 @@ const VELOCITY_WARP_CEILING = 0.16
 /** Seconds the warp is held after the loop, masking the jump back to the top. */
 const LOOP_FLASH_SECONDS = 1.05
 const LOOP_COOLDOWN_SECONDS = 1.5
-const LOOP_TRIGGER_SLACK_PX = 4
 
 let lenisInstance: Lenis | null = null
 let anchors: number[] = []
@@ -50,25 +49,45 @@ const INTRO_HOLD_MS = 1800
 const INTRO_EASE_MS = 1400
 
 /**
- * Continuous magnetism — midpoints between sections are unstable.
- * While the user is scrolling they can pass through; the moment input stops,
- * scroll is pulled toward the nearer anchor every frame (no settle pause,
- * no separate "snap animation" that starts after a dead stop).
+ * Hard section pager — one intentional gesture = exactly one beat.
+ * Mid-glide input is ignored (not queued), so a trackpad flick cannot chain
+ * past the next composition. The right-rail nav may jump any beat.
  */
-const MAGNET_STRENGTH = 16
-/** After the last wheel/touch/key, wait this long before the magnet engages. */
-const INPUT_GRACE_SECONDS = 0.06
-/** Landed close enough to count as on-composition. */
-const SNAP_MIN_PX = 1.5
-
-let lastInputAt = 0
-
+const SECTION_DURATION = 0.8
+const WHEEL_THRESHOLD = 8
 /**
- * Magnetism yields to intent. Any real input opens a grace window where the
- * user owns the scroll; the pull resumes as soon as that window ends.
+ * After landing, ignore leftover trackpad inertia. Must outlast typical
+ * Mac trackpad coast or one flick lands two sections.
  */
-function noteInput() {
-  lastInputAt = performance.now()
+const GESTURE_COOLDOWN_MS = 520
+const TOUCH_THRESHOLD_PX = 48
+
+let sectionIndex = 0
+let paging = false
+let gestureLocked = false
+let pageToken = 0
+let unlockTimer = 0
+let touchOriginY: number | null = null
+const sectionListeners = new Set<(index: number) => void>()
+
+function easeAssist(t: number) {
+  return 1 - Math.pow(1 - t, 4)
+}
+
+function notifySection() {
+  for (const listener of sectionListeners) listener(sectionIndex)
+}
+
+export function getSectionIndex() {
+  return sectionIndex
+}
+
+export function subscribeSection(listener: (index: number) => void) {
+  sectionListeners.add(listener)
+  listener(sectionIndex)
+  return () => {
+    sectionListeners.delete(listener)
+  }
 }
 
 function nearestAnchorIndex(scrollY: number) {
@@ -84,28 +103,192 @@ function nearestAnchorIndex(scrollY: number) {
   return best
 }
 
-function tickMagnetism(lenis: Lenis, delta: number) {
-  if (!entered || anchors.length === 0) return
-  if ((performance.now() - lastInputAt) / 1000 < INPUT_GRACE_SECONDS) return
+function syncSectionFromScroll() {
+  if (anchors.length === 0) return
+  const next = nearestAnchorIndex(lenisInstance?.scroll ?? window.scrollY)
+  if (next !== sectionIndex) {
+    sectionIndex = next
+    notifySection()
+  }
+}
 
-  const y = lenis.scroll ?? window.scrollY
-  const nearest = nearestAnchorIndex(y)
+function unlockGesture() {
+  window.clearTimeout(unlockTimer)
+  unlockTimer = window.setTimeout(() => {
+    gestureLocked = false
+  }, GESTURE_COOLDOWN_MS)
+}
 
-  // Warp runway stays free-scroll into the loop.
-  if (nearest >= LAST_BEAT) return
+function triggerLoop(lenis: Lenis) {
+  if (loopCooldown > 0) return
+  flash = 1
+  loopCooldown = LOOP_COOLDOWN_SECONDS
+  const token = ++pageToken
+  paging = true
+  gestureLocked = true
+  sectionIndex = 0
+  notifySection()
+  lenis.scrollTo(0, { immediate: true, force: true })
+  if (token === pageToken) {
+    paging = false
+    unlockGesture()
+  }
+}
 
-  const target = anchors[nearest]
-  const error = target - y
-  if (Math.abs(error) < SNAP_MIN_PX) {
-    if (Math.abs(error) > 0.05) {
-      lenis.scrollTo(target, { immediate: true, force: true })
-    }
+function finishPage(token: number) {
+  if (token !== pageToken) return
+  paging = false
+  unlockGesture()
+}
+
+type GoOptions = {
+  /** Nav / anchor jumps interrupt the current glide. */
+  force?: boolean
+}
+
+function goToSection(index: number, options: GoOptions = {}) {
+  const lenis = lenisInstance
+  if (!entered || !lenis || anchors.length === 0) return
+
+  // Wheel/keys never stack — only an explicit nav jump may interrupt.
+  if (!options.force && (paging || gestureLocked)) return
+
+  // Past the last beat → warp loop back to the hero.
+  if (index > LAST_BEAT) {
+    if (sectionIndex >= LAST_BEAT) triggerLoop(lenis)
     return
   }
 
-  // Exponential approach every frame — continuous magnet, not a delayed snap.
-  const pull = 1 - Math.exp(-MAGNET_STRENGTH * delta)
-  lenis.scrollTo(y + error * pull, { immediate: true, force: true })
+  const next = Math.max(0, Math.min(LAST_BEAT, index))
+  if (next === sectionIndex && !options.force) return
+
+  const target = anchors[next]
+  if (target === undefined) return
+
+  if (options.force) {
+    pageToken += 1
+    window.clearTimeout(unlockTimer)
+  }
+
+  const span = Math.abs(next - sectionIndex)
+  const token = ++pageToken
+  paging = true
+  gestureLocked = true
+  sectionIndex = next
+  notifySection()
+  lenis.scrollTo(target, {
+    duration: options.force && span > 1 ? 0.95 : SECTION_DURATION,
+    easing: easeAssist,
+    force: true,
+    lock: true,
+    onComplete: () => finishPage(token),
+  })
+}
+
+/** Public API for the right-rail nav — may skip intermediate beats. */
+export function goToSectionIndex(index: number) {
+  goToSection(index, { force: true })
+}
+
+function pageBy(delta: number) {
+  if (delta === 0) return
+  goToSection(sectionIndex + (delta > 0 ? 1 : -1))
+}
+
+function onWheel(event: WheelEvent) {
+  // Always kill native / Lenis free-scroll so the page never drifts off-beat.
+  event.preventDefault()
+  event.stopImmediatePropagation()
+  if (!entered || paging || gestureLocked) return
+  if (Math.abs(event.deltaY) < WHEEL_THRESHOLD) return
+  pageBy(event.deltaY)
+}
+
+function onTouchStart(event: TouchEvent) {
+  if (event.touches.length !== 1) return
+  touchOriginY = event.touches[0].clientY
+}
+
+function onTouchMove(event: TouchEvent) {
+  if (entered) event.preventDefault()
+}
+
+function onTouchEnd(event: TouchEvent) {
+  if (touchOriginY === null || !entered) {
+    touchOriginY = null
+    return
+  }
+  const endY = event.changedTouches[0]?.clientY
+  const startY = touchOriginY
+  touchOriginY = null
+  if (endY === undefined || paging || gestureLocked) return
+  const dy = startY - endY
+  if (Math.abs(dy) < TOUCH_THRESHOLD_PX) return
+  pageBy(dy)
+}
+
+function onKeyDown(event: KeyboardEvent) {
+  if (!entered || paging || gestureLocked) return
+  const el = event.target
+  if (el instanceof HTMLElement) {
+    const tag = el.tagName
+    if (
+      tag === 'INPUT' ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      tag === 'BUTTON' ||
+      el.isContentEditable
+    ) {
+      return
+    }
+  }
+  const key = event.key
+  if (
+    key === 'ArrowDown' ||
+    key === 'PageDown' ||
+    key === ' ' ||
+    key === 'Spacebar'
+  ) {
+    event.preventDefault()
+    pageBy(1)
+    return
+  }
+  if (key === 'ArrowUp' || key === 'PageUp') {
+    event.preventDefault()
+    pageBy(-1)
+  }
+}
+
+function onAnchorClick(event: MouseEvent) {
+  const target = (event.target as Element | null)?.closest?.('a[href^="#"]')
+  if (!target) return
+  const href = target.getAttribute('href')
+  if (!href || href === '#') return
+
+  const id = href.slice(1)
+  const beatNodes = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-beat]'),
+  )
+  let index = -1
+  if (id === 'top') index = 0
+  else if (id === 'work') {
+    index = beatNodes.findIndex((node) => node.dataset.beat?.startsWith('work'))
+  } else {
+    index = beatNodes.findIndex(
+      (node) => node.id === id || node.dataset.beat === id,
+    )
+    if (index < 0) {
+      const section = document.getElementById(id)
+      if (section) {
+        const beat = section.querySelector<HTMLElement>('[data-beat]')
+        if (beat) index = beatNodes.indexOf(beat)
+        else index = beatNodes.findIndex((node) => section.contains(node))
+      }
+    }
+  }
+  if (index < 0) return
+  event.preventDefault()
+  goToSection(index, { force: true })
 }
 
 export function getLenis() {
@@ -119,13 +302,6 @@ function clamp01(value: number) {
 function smoothstep(edge0: number, edge1: number, x: number) {
   const t = clamp01((x - edge0) / (edge1 - edge0))
   return t * t * (3 - 2 * t)
-}
-
-function scrollLimit() {
-  return Math.max(
-    0,
-    document.documentElement.scrollHeight - window.innerHeight,
-  )
 }
 
 /**
@@ -207,22 +383,6 @@ function applyScroll(y: number, velocity: number) {
   refreshWarp()
 }
 
-/**
- * At the end of the runway the screen is almost entirely warp streaks, so
- * cutting back to the top is invisible; the held flash covers the remainder
- * while the hero recomposes out of the light.
- */
-function tryLoop(lenis: Lenis) {
-  if (loopCooldown > 0) return
-  const limit = scrollLimit()
-  if (limit <= 0) return
-  if (window.scrollY < limit - LOOP_TRIGGER_SLACK_PX) return
-  if (sectionWarp < 0.98) return
-
-  flash = 1
-  loopCooldown = LOOP_COOLDOWN_SECONDS
-  lenis.scrollTo(0, { immediate: true, force: true })
-}
 
 function tickIntroWarp(deltaMs: number) {
   if (introPhase === 'idle' || introPhase === 'done') return
@@ -266,6 +426,13 @@ export function enterSite() {
   getLenis()?.start()
   startIntroWarp()
   refreshWarp()
+  // Land on the hero composition — never mid-scroll after the intro.
+  sectionIndex = 0
+  notifySection()
+  const hero = anchors[0]
+  if (hero !== undefined) {
+    getLenis()?.scrollTo(hero, { immediate: true, force: true })
+  }
 }
 
 /** 0 while idle or hold; eases 0→1 during intro settle; 1 when complete. */
@@ -298,12 +465,16 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
   useEffect(() => {
     if (!ready) return
 
-    measureAnchors()
+    const remeasure = () => {
+      measureAnchors()
+      if (!paging) syncSectionFromScroll()
+    }
+    remeasure()
 
     // Fonts and lazily-sized content shift the anchors after first paint.
-    const observer = new ResizeObserver(() => measureAnchors())
+    const observer = new ResizeObserver(remeasure)
     observer.observe(document.body)
-    window.addEventListener('resize', measureAnchors)
+    window.addEventListener('resize', remeasure)
 
     // Reduced motion draws a static backdrop instead of the scene, so there are
     // no streaks to dissolve into and the copy must stay put.
@@ -316,17 +487,30 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       window.addEventListener('scroll', onScroll, { passive: true })
       return () => {
         observer.disconnect()
-        window.removeEventListener('resize', measureAnchors)
+        window.removeEventListener('resize', remeasure)
         window.removeEventListener('scroll', onScroll)
       }
     }
 
     refreshWarp()
 
+    // Keep the document tall for programmatic glides, but kill native rubber-band
+    // / free-scroll so the only motion is our guided travel.
+    const root = document.documentElement
+    const prevTouchAction = document.body.style.touchAction
+    const prevOverscroll = root.style.overscrollBehaviorY
+    document.body.style.touchAction = 'none'
+    root.style.overscrollBehaviorY = 'none'
+
+    // Lenis only runs our guided glides — wheel/touch never feed free scroll.
     const lenis = new Lenis({
-      lerp: 0.075,
-      wheelMultiplier: 0.9,
-      touchMultiplier: 1.5,
+      lerp: 1,
+      smoothWheel: false,
+      syncTouch: false,
+      wheelMultiplier: 0,
+      touchMultiplier: 0,
+      // Returning false cancels Lenis consuming the gesture as free scroll.
+      virtualScroll: () => false,
     })
     lenisInstance = lenis
     // enterSite may have already run in the same tick; honour that so the
@@ -341,11 +525,24 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       applyScroll(instance.scroll ?? window.scrollY, instance.velocity ?? 0)
     })
     applyScroll(window.scrollY, 0)
+    syncSectionFromScroll()
 
-    window.addEventListener('wheel', noteInput, { passive: true })
-    window.addEventListener('touchstart', noteInput, { passive: true })
-    window.addEventListener('touchmove', noteInput, { passive: true })
-    window.addEventListener('keydown', noteInput)
+    // Capture phase so we beat Lenis / the browser before any free-scroll starts.
+    window.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    window.addEventListener('touchstart', onTouchStart, {
+      passive: true,
+      capture: true,
+    })
+    window.addEventListener('touchmove', onTouchMove, {
+      passive: false,
+      capture: true,
+    })
+    window.addEventListener('touchend', onTouchEnd, {
+      passive: true,
+      capture: true,
+    })
+    window.addEventListener('keydown', onKeyDown)
+    document.addEventListener('click', onAnchorClick)
 
     let frame = 0
     let previousTime = performance.now()
@@ -359,8 +556,6 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       if (flash > 0) flash = Math.max(0, flash - delta / LOOP_FLASH_SECONDS)
       tickIntroWarp(delta * 1000)
       refreshWarp()
-      tickMagnetism(lenis, delta)
-      tryLoop(lenis)
 
       frame = requestAnimationFrame(loop)
     }
@@ -369,16 +564,24 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
     return () => {
       cancelAnimationFrame(frame)
       observer.disconnect()
-      window.removeEventListener('resize', measureAnchors)
-      window.removeEventListener('wheel', noteInput)
-      window.removeEventListener('touchstart', noteInput)
-      window.removeEventListener('touchmove', noteInput)
-      window.removeEventListener('keydown', noteInput)
+      window.removeEventListener('resize', remeasure)
+      window.removeEventListener('wheel', onWheel, true)
+      window.removeEventListener('touchstart', onTouchStart, true)
+      window.removeEventListener('touchmove', onTouchMove, true)
+      window.removeEventListener('touchend', onTouchEnd, true)
+      window.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('click', onAnchorClick)
       lenis.destroy()
       lenisInstance = null
       flash = 0
       resetIntroWarp()
       loopCooldown = 0
+      paging = false
+      gestureLocked = false
+      pageToken += 1
+      window.clearTimeout(unlockTimer)
+      document.body.style.touchAction = prevTouchAction
+      root.style.overscrollBehaviorY = prevOverscroll
       veilEnabled = false
       document.documentElement.style.setProperty('--warp-veil', '0')
     }

@@ -3,15 +3,24 @@ import { StatusChip } from './StatusChip'
 import { TypingLine } from './TypingLine'
 import { BrandMark, BrandStamp } from './BrandMark'
 import { ArrowIcon, SERVICE_ICONS } from './icons'
+import { SectionNav } from './SectionNav'
+import { useWarpHide } from './useWarpHide'
 import { projects, services } from '../content/projects'
 import { WORK_BEATS, type BeatId } from '../lib/beats'
 
 function Header() {
+  const hidden = useWarpHide()
+
   return (
-    <>
+    <div
+      className={`transition-opacity duration-300 ${
+        hidden ? 'pointer-events-none opacity-0' : 'opacity-100'
+      }`}
+      aria-hidden={hidden}
+    >
       {/* Content scrolls under the fixed nav, so it needs a scrim to stay legible. */}
       <div
-        className="pointer-events-none fixed inset-x-0 top-0 z-[15] h-32 bg-gradient-to-b from-black via-black/70 to-transparent"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[15] h-32 bg-gradient-to-b from-void via-void/75 to-transparent"
         aria-hidden
       />
       <header className="fixed inset-x-0 top-0 z-20 flex items-center justify-between px-6 py-6 md:px-12">
@@ -32,7 +41,7 @@ function Header() {
           Start a project
         </a>
       </header>
-    </>
+    </div>
   )
 }
 
@@ -118,95 +127,121 @@ function Work() {
       {projects.map((project, i) => (
         <section
           key={project.name}
-          className="flex min-h-screen items-center px-6 md:px-12"
+          className="flex min-h-screen items-center px-6 py-20 md:px-12"
         >
-          <article
+          <div
             data-beat={WORK_BEATS[i]}
-            className={`max-w-2xl ${project.placeholder ? 'opacity-60' : ''}`}
+            className={`flex w-full max-w-6xl flex-col gap-10 lg:flex-row lg:items-center lg:gap-14 ${
+              project.placeholder ? 'opacity-60' : ''
+            }`}
           >
-            <Reveal>
-              <BrandStamp
-                label={`Work / ${project.index}`}
-                className="mb-7"
-              />
-            </Reveal>
-
-            <Reveal delay={60}>
-              <div className="mb-5 flex flex-wrap items-center gap-3">
-                <StatusChip status={project.status} />
-                {project.categories.map((category) => (
-                  <span
-                    key={category}
-                    className="rounded-full border border-white/10 px-2.5 py-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-regolith"
-                  >
-                    {category}
-                  </span>
-                ))}
-              </div>
-            </Reveal>
-
-            <Reveal delay={100}>
-              <h2 className="display-lg text-[clamp(2.5rem,6vw,4.5rem)]">
-                {project.name}
-              </h2>
-              <p className="mt-4 text-xl text-glow md:text-2xl">
-                {project.tagline}
-              </p>
-            </Reveal>
-
-            <Reveal delay={160}>
-              <p className="mt-6 max-w-xl text-[0.9375rem] leading-relaxed text-regolith">
-                {project.description}
-              </p>
-            </Reveal>
-
-            {project.highlights.length > 0 && (
-              <Reveal delay={220}>
-                <ul className="mt-8 grid gap-x-8 gap-y-3 border-t border-white/8 pt-6 sm:grid-cols-3">
-                  {project.highlights.map((highlight) => (
-                    <li
-                      key={highlight}
-                      className="flex items-start gap-2.5 text-[0.8125rem] leading-snug text-rim/85"
-                    >
-                      <span
-                        className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-glow"
-                        aria-hidden
-                      />
-                      {highlight}
-                    </li>
-                  ))}
-                </ul>
+            <article className="max-w-xl shrink-0 lg:w-[min(100%,28rem)]">
+              <Reveal>
+                <BrandStamp
+                  label={`Work / ${project.index}`}
+                  className="mb-7"
+                />
               </Reveal>
-            )}
 
-            <Reveal delay={280}>
-              <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-2">
-                <span className="label mr-2 text-[0.625rem] text-regolith/50">
-                  Built with
-                </span>
-                {project.stack.map((tech) => (
-                  <span
-                    key={tech}
-                    className="rounded-md bg-white/6 px-2.5 py-1 font-mono text-[0.6875rem] tracking-wide text-regolith"
-                  >
-                    {tech}
+              <Reveal delay={60}>
+                <div className="mb-5 flex flex-wrap items-center gap-3">
+                  <StatusChip status={project.status} />
+                  {project.categories.map((category) => (
+                    <span
+                      key={category}
+                      className="rounded-full border border-white/10 px-2.5 py-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-regolith"
+                    >
+                      {category}
+                    </span>
+                  ))}
+                </div>
+              </Reveal>
+
+              <Reveal delay={100}>
+                <h2 className="display-lg text-[clamp(2.5rem,6vw,4.5rem)]">
+                  {project.name}
+                </h2>
+                <p className="mt-4 text-xl text-glow md:text-2xl">
+                  {project.tagline}
+                </p>
+              </Reveal>
+
+              <Reveal delay={160}>
+                <p className="mt-6 max-w-xl text-[0.9375rem] leading-relaxed text-regolith">
+                  {project.description}
+                </p>
+              </Reveal>
+
+              {project.highlights.length > 0 && (
+                <Reveal delay={220}>
+                  <ul className="mt-8 grid gap-x-8 gap-y-3 border-t border-white/8 pt-6 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                    {project.highlights.map((highlight) => (
+                      <li
+                        key={highlight}
+                        className="flex items-start gap-2.5 text-[0.8125rem] leading-snug text-rim/85"
+                      >
+                        <span
+                          className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-glow"
+                          aria-hidden
+                        />
+                        {highlight}
+                      </li>
+                    ))}
+                  </ul>
+                </Reveal>
+              )}
+
+              <Reveal delay={280}>
+                <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-2">
+                  <span className="label mr-2 text-[0.625rem] text-regolith/50">
+                    Built with
                   </span>
-                ))}
-              </div>
-            </Reveal>
+                  {project.stack.map((tech) => (
+                    <span
+                      key={tech}
+                      className="rounded-md bg-white/6 px-2.5 py-1 font-mono text-[0.6875rem] tracking-wide text-regolith"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </Reveal>
 
-            {project.href && (
-              <Reveal delay={330}>
+              {project.href && (
+                <Reveal delay={330}>
+                  <a
+                    href={project.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group mt-9 inline-flex items-center gap-2.5 border-b border-white/20 pb-1.5 font-mono text-xs uppercase tracking-[0.16em] text-rim transition-colors duration-300 hover:border-glow hover:text-glow"
+                  >
+                    View project
+                    <ArrowIcon className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  </a>
+                </Reveal>
+              )}
+            </article>
+
+            {project.image && (
+              <Reveal delay={140} className="min-w-0 flex-1">
                 <a
                   href={project.href}
-                  className="group mt-9 inline-flex items-center gap-2.5 border-b border-white/20 pb-1.5 font-mono text-xs uppercase tracking-[0.16em] text-rim transition-colors duration-300 hover:border-glow hover:text-glow"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block"
+                  aria-label={`Open ${project.name}`}
                 >
-                  View project
-                  <ArrowIcon className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  <img
+                    src={project.image}
+                    alt={`${project.name} — live product`}
+                    className="w-full border border-white/10 object-cover shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition duration-500 group-hover:border-glow/30"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </a>
               </Reveal>
             )}
-          </article>
+          </div>
         </section>
       ))}
     </div>
@@ -288,17 +323,28 @@ function Warp() {
   )
 }
 
-export function Overlay() {
+export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
   return (
-    <div className="warp-veil">
-      <Header />
-      <main className="relative z-10">
-        <Hero />
-        <Services />
-        <Work />
-        <Contact />
-        <Warp />
-      </main>
-    </div>
+    <>
+      {/* Chrome above the foreground debris canvas (z-40) so controls stay clickable. */}
+      {showChrome ? (
+        <div className="pointer-events-none fixed inset-0 z-50">
+          <div className="pointer-events-auto">
+            <Header />
+          </div>
+          <SectionNav />
+        </div>
+      ) : null}
+      {/* Copy sits under rocks/meteors so debris can pass in front of the type. */}
+      <div className="warp-veil relative z-10">
+        <main className="relative z-10">
+          <Hero />
+          <Services />
+          <Work />
+          <Contact />
+          <Warp />
+        </main>
+      </div>
+    </>
   )
 }

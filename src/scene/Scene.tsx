@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { useEffect, useMemo } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
 import {
   Bloom,
   ChromaticAberration,
@@ -14,6 +14,9 @@ import { DriftingRocks } from './DriftingRocks'
 import { ShootingStars } from './ShootingStars'
 import { Starfield } from './Starfield'
 import { dprFor, type QualityTier } from '../lib/quality'
+import { cameraBridge } from '../lib/cameraBridge'
+
+const VOID = '#0e1016'
 
 function Effects({ tier }: { tier: QualityTier }) {
   const aberrationOffset = useMemo(
@@ -45,8 +48,6 @@ function Effects({ tier }: { tier: QualityTier }) {
         mipmapBlur
         resolutionScale={0.65}
       />
-      {/* The frost/glitch feel on the Igloo site comes from a very small
-          radially-modulated aberration, not a large offset. */}
       <ChromaticAberration
         offset={aberrationOffset}
         radialModulation
@@ -58,7 +59,50 @@ function Effects({ tier }: { tier: QualityTier }) {
   )
 }
 
-export function Scene({ tier }: { tier: QualityTier }) {
+/** Follows the background CameraRig so debris stays view-locked. */
+function FollowCamera() {
+  useFrame((state) => {
+    if (!cameraBridge.ready) return
+    const camera = state.camera
+    camera.position.copy(cameraBridge.position)
+    if (camera instanceof THREE.PerspectiveCamera) {
+      if (Math.abs(camera.fov - cameraBridge.fov) > 0.01) {
+        camera.fov = cameraBridge.fov
+        camera.updateProjectionMatrix()
+      }
+    }
+    camera.lookAt(cameraBridge.target)
+  })
+  return null
+}
+
+/** Fires once the first WebGL frame has drawn — ends the loading gate. */
+function ReadySignal({ onReady }: { onReady?: () => void }) {
+  useEffect(() => {
+    let frames = 0
+    let raf = 0
+    const tick = () => {
+      frames += 1
+      // A couple of frames so the first warp streak is already in the pipeline.
+      if (frames >= 2) {
+        onReady?.()
+        return
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [onReady])
+  return null
+}
+
+function BackgroundScene({
+  tier,
+  onReady,
+}: {
+  tier: QualityTier
+  onReady?: () => void
+}) {
   return (
     <Canvas
       className="!fixed inset-0 z-0"
@@ -70,14 +114,50 @@ export function Scene({ tier }: { tier: QualityTier }) {
       }}
       camera={{ position: [0, 0, 27], fov: 42, near: 0.1, far: 200 }}
     >
-      <color attach="background" args={['#0e1016']} />
-      {/* No scene lights: every surface carries its own light direction so the
-          four shells can be lit independently, the way the logo is. */}
+      <color attach="background" args={[VOID]} />
+      <ReadySignal onReady={onReady} />
       <Shells />
       <Starfield count={tier === 'high' ? 1100 : 550} />
-      <DriftingRocks />
-      <ShootingStars />
       <Effects tier={tier} />
     </Canvas>
+  )
+}
+
+function ForegroundDebris({ tier }: { tier: QualityTier }) {
+  return (
+    <Canvas
+      className="pointer-events-none !fixed inset-0 z-40"
+      dpr={dprFor(tier)}
+      gl={{
+        antialias: tier === 'high',
+        alpha: true,
+        premultipliedAlpha: true,
+        powerPreference: 'high-performance',
+      }}
+      camera={{ position: [0, 0, 27], fov: 42, near: 0.1, far: 200 }}
+      style={{ background: 'transparent' }}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0)
+      }}
+    >
+      <FollowCamera />
+      <DriftingRocks />
+      <ShootingStars crossText />
+    </Canvas>
+  )
+}
+
+export function Scene({
+  tier,
+  onReady,
+}: {
+  tier: QualityTier
+  onReady?: () => void
+}) {
+  return (
+    <>
+      <BackgroundScene tier={tier} onReady={onReady} />
+      <ForegroundDebris tier={tier} />
+    </>
   )
 }
