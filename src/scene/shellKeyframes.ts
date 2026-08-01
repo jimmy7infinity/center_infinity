@@ -223,7 +223,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     spinAxis: [0.85, 0.15, 0.1],
     spinRate: 0.026,
     keyframes: [
-      kf('hero', 0.51, 0.62, 0, below(0.08, -0.68), 0.75),
+      kf('hero', 0.5, 0.62, 0, below(0.08, -0.68), 0.75),
       kf('services', 0.26, 0.82, -9, below(-0.75, -0.65), 0.78),
       kf('work-1', 0.76, 0.6, -4.5, below(0.5, -0.6), 0.82),
       kf('work-2', 0.72, 0.78, -8, below(0.65, -0.6), 0.84),

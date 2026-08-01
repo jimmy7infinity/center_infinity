@@ -130,7 +130,9 @@ function AchievementChip({
 }) {
   const def = getAchievement(id)
   return (
-    <li className={`achievement-chip${announcing ? ' is-announcing' : ''}`}>
+    <li
+      className={`achievement-chip relative${announcing ? ' is-announcing' : ''}`}
+    >
       <button
         type="button"
         className="achievement-chip__hit"
@@ -150,7 +152,11 @@ function AchievementChip({
         </span>
       </button>
       {announcing ? (
-        <span className="sr-only" role="status" aria-live="polite">
+        <span
+          className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0"
+          role="status"
+          aria-live="polite"
+        >
           achievement unlocked: {def.name}
         </span>
       ) : null}

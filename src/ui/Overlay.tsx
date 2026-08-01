@@ -105,8 +105,8 @@ function Hero() {
       className="relative flex min-h-screen select-none items-start justify-center px-6 pt-[38vh] md:items-center md:pt-0"
     >
       {/* Held at --hero-copy:0 until planets finish arriving, then fades in. */}
-      <div className="hero-copy">
-        <div className="flex flex-col items-center text-center">
+      <div className="hero-copy flex w-full justify-center">
+        <div className="flex w-full max-w-lg flex-col items-center text-center">
           <div
             className="relative z-[12] mb-5 cursor-pointer"
             onClick={onMarkClick}
@@ -122,7 +122,9 @@ function Hero() {
 
       <div className="hero-cue pointer-events-none absolute inset-x-0 bottom-3 flex justify-center md:bottom-4">
         <div className="hero-scroll-cue flex flex-col items-center gap-1 text-regolith/45">
-          <span className="label text-[0.5625rem] tracking-[0.2em]">Scroll</span>
+          <span className="label text-[0.5625rem] tracking-[0.2em] [text-indent:0.2em]">
+            Scroll
+          </span>
           <ChevronDownDoubleIcon className="h-3 w-3" />
         </div>
       </div>

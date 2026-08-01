@@ -242,7 +242,9 @@ html.game-active * {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0;
+  margin: 0;
+  padding: 0;
   max-width: min(100%, calc(100vw - 10rem));
   overflow-x: auto;
   overflow-y: hidden;
@@ -256,6 +258,13 @@ html.game-active * {
 .achievement-chip {
   list-style: none;
   flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+}
+
+/* Share a border with the previous icon so the strip reads flush. */
+.achievement-chip + .achievement-chip .achievement-chip__icon {
+  border-left-color: transparent;
 }
 
 .achievement-chip__hit {
@@ -263,6 +272,7 @@ html.game-active * {
   flex-direction: row;
   align-items: stretch;
   height: 1.75rem;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -283,10 +293,15 @@ html.game-active * {
     color 0.25s ease;
 }
 
-/* Width animates in-flow so later chips slide right when a drawer opens. */
+/*
+ * Width animates in-flow so later chips slide right when a drawer opens.
+ * min-width:0 is required — flex defaults to min-width:auto, which kept each
+ * closed drawer as wide as its label and looked like huge gaps.
+ */
 .achievement-chip__drawer {
   display: grid;
   grid-template-columns: 0fr;
+  min-width: 0;
   overflow: hidden;
   transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
