@@ -22,7 +22,7 @@ export function BrandMark({
 }: BrandMarkProps) {
   return (
     <img
-      src="/logo.png"
+      src={`/logo.png?v=${__BRAND_MARK_V__}`}
       alt={decorative ? '' : 'Center Infinity'}
       className={`${SIZE_CLASS[size]} w-auto opacity-90 ${className}`}
       draggable={false}

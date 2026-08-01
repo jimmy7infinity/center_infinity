@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { publishCamera } from '../../lib/cameraBridge'
@@ -12,6 +12,7 @@ import {
 } from '../../lib/gameMode'
 import { forEachShellProbe } from '../../scene/Shells'
 import { attachFlyerControls, flyerControls } from './controls'
+import { flyerAim, reticleDepthAheadOfShip } from './flyerAim'
 import { CombatField } from './OrbitRocks'
 import { createRockBurstSystem } from './rockBurst'
 import { ShipFallback, ShipModel } from './ShipModel'
@@ -38,12 +39,14 @@ const CAM_POS_DAMP = 2.4
 const CAM_POS_DAMP_BURST = 4.5
 const CAM_LOOK_DAMP = 3.2
 const MAX_TURN_RATE = 2.1
-const AIM_RANGE = 28
+/** How far ahead of the ship the empty-space reticle plane sits. */
+const COMBAT_LEAD = 14
 const MAX_PITCH = 1.05
 const GAME_FOV = 42
 const BURST_FOV = 50
 const SPAWN_LOOK_DISTANCE = 10
-const BANK_AIM_NUDGE = 0.26
+/** Extra yaw (rad) while holding A/D — turn assist, not reticle offset. */
+const BANK_YAW = 0.38
 const MAX_BANK_ROLL = 0.7
 const AUTO_BANK_FROM_AIM = 0.22
 const BANK_ROLL_DAMP = 7
@@ -52,6 +55,7 @@ const _shipForward = new THREE.Vector3()
 const _aimPoint = new THREE.Vector3()
 const _aimDir = new THREE.Vector3()
 const _lookDir = new THREE.Vector3()
+const _rayDir = new THREE.Vector3()
 const _ndc = new THREE.Vector3()
 const _desiredQuat = new THREE.Quaternion()
 const _rollQuat = new THREE.Quaternion()
@@ -83,15 +87,6 @@ export function SpaceFlyer() {
   const exiting = useRef(false)
   const crashed = useRef(false)
   const booted = useRef(false)
-
-  const getNose = useCallback((out: THREE.Vector3) => {
-    const ship = shipRef.current
-    if (!ship) {
-      out.set(0, 0, -1)
-      return
-    }
-    out.set(0, 0, -1).applyQuaternion(ship.quaternion).normalize()
-  }, [])
 
   useEffect(() => {
     const detach = attachFlyerControls()
@@ -161,23 +156,32 @@ export function SpaceFlyer() {
     if (flyerControls.bankLeft) bank -= 1
     if (flyerControls.bankRight) bank += 1
 
-    const aimX = THREE.MathUtils.clamp(
-      flyerControls.aimX + bank * BANK_AIM_NUDGE,
-      -1.35,
-      1.35,
-    )
-    const aimY = flyerControls.aimY
-
+    // Reticle ray from the camera through the hex (true cursor — not bank-nudged).
+    // Aim point sits on that ray at a depth just ahead of the ship so the shot
+    // line matches the crosshair at combat range (fixes under-shoot parallax).
     camera.updateMatrixWorld()
-    _ndc.set(aimX, aimY, 0.5).unproject(camera)
-    _aimDir.copy(_ndc).sub(camera.position).normalize()
-    _aimPoint.copy(camera.position).addScaledVector(_aimDir, AIM_RANGE)
+    camera.getWorldDirection(_lookDir)
+    _ndc.set(flyerControls.aimX, flyerControls.aimY, 0.5).unproject(camera)
+    _rayDir.copy(_ndc).sub(camera.position).normalize()
+    const aimDepth = reticleDepthAheadOfShip(
+      camera.position,
+      _lookDir,
+      ship.position,
+      COMBAT_LEAD,
+    )
+    _aimPoint.copy(camera.position).addScaledVector(_rayDir, aimDepth)
 
     _aimDir.copy(_aimPoint).sub(ship.position)
     if (_aimDir.lengthSq() < 1e-6) {
       _aimDir.set(0, 0, -1).applyQuaternion(ship.quaternion)
     } else {
       _aimDir.normalize()
+    }
+    // A/D yaw assist around world up — ship turns, reticle stay where you aim.
+    if (bank !== 0) {
+      _aimDir.applyAxisAngle(_worldUp, -bank * BANK_YAW * dt * 3.2)
+      _aimDir.normalize()
+      _aimPoint.copy(ship.position).addScaledVector(_aimDir, COMBAT_LEAD)
     }
 
     const pitch = Math.asin(
@@ -193,6 +197,10 @@ export function SpaceFlyer() {
         yawDirZ * Math.cos(pitch),
       )
       .normalize()
+
+    flyerAim.point.copy(ship.position).addScaledVector(_aimDir, COMBAT_LEAD)
+    flyerAim.direction.copy(_aimDir)
+    flyerAim.muzzle.copy(ship.position).addScaledVector(_aimDir, 0.42)
 
     _tmpRight.crossVectors(_aimDir, _worldUp)
     if (_tmpRight.lengthSq() < 1e-6) {
@@ -339,7 +347,7 @@ export function SpaceFlyer() {
         <primitive key={`wreck-${index}`} object={mesh} />
       ))}
       <primitive object={wreck.sparkMesh} />
-      <CombatField shipRef={shipRef} getNose={getNose} />
+      <CombatField shipRef={shipRef} />
     </>
   )
 }

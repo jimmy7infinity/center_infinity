@@ -4,6 +4,10 @@ import * as THREE from 'three'
 import { recordShootingStarTriggered } from '../lib/achievements'
 import { pointerState } from '../lib/pointer'
 import { getHeroCopy, scrollState } from '../lib/scroll'
+import {
+  hitDriftingRockWithSegment,
+  pickDriftingRockAlongRay,
+} from './driftingRockBridge'
 
 /** Max concurrent streaks — enough to spam-click, capped for fill cost. */
 const POOL_SIZE = 10
@@ -46,11 +50,15 @@ type CometUniforms = {
 
 type Meteor = {
   active: boolean
+  /** Click-spawned streaks can shatter drifting rocks they clip. */
+  fromClick: boolean
   progress: number
   duration: number
   start: THREE.Vector3
   end: THREE.Vector3
   headWidth: number
+  /** Prior-frame head — segment vs rock uses this → current head. */
+  prevHead: THREE.Vector3
   mesh: THREE.Mesh
   uniforms: CometUniforms
 }
@@ -175,11 +183,13 @@ function createMeteor(): Meteor {
 
   return {
     active: false,
+    fromClick: false,
     progress: 0,
     duration: 1,
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
     headWidth: 0.04,
+    prevHead: new THREE.Vector3(),
     mesh,
     uniforms,
   }
@@ -188,16 +198,33 @@ function createMeteor(): Meteor {
 const spawnAnchor = new THREE.Vector3()
 const travelDirection = new THREE.Vector3()
 
+const _aimUnproject = new THREE.Vector3()
+const _aimDir = new THREE.Vector3()
+
 function activateMeteor(
   meteor: Meteor,
   camera: THREE.PerspectiveCamera,
   crossText: boolean,
   /** Optional NDC (-1..1) — comet path passes through this screen point. */
   aimNdc?: { x: number; y: number },
+  fromClick = false,
 ) {
-  const distance = crossText
+  let distance = crossText
     ? CROSS_DISTANCE + Math.random() * 2.4
     : SKY_DISTANCE + Math.random() * 18
+
+  // Click streaks: if debris sits under the aim, fly at that depth so a hit
+  // is geometrically possible (rocks and default meteors don't share a plane).
+  if (fromClick && aimNdc && crossText) {
+    camera.updateMatrixWorld()
+    _aimUnproject.set(aimNdc.x, aimNdc.y, 0.5).unproject(camera)
+    _aimDir.copy(_aimUnproject).sub(camera.position).normalize()
+    const pick = pickDriftingRockAlongRay(camera.position, _aimDir)
+    if (pick) {
+      distance = THREE.MathUtils.clamp(pick.distance, 2.6, 7.2)
+    }
+  }
+
   const frameHeight = 2 * distance * Math.tan((camera.fov * Math.PI) / 360)
   const frameWidth = frameHeight * camera.aspect
 
@@ -232,7 +259,9 @@ function activateMeteor(
   meteor.progress = 0
   meteor.duration = 0.8 + Math.random() * 0.65
   meteor.headWidth = (crossText ? 0.016 : 0.034) * (0.85 + Math.random() * 0.3)
+  meteor.fromClick = fromClick
   meteor.active = true
+  meteor.prevHead.copy(meteor.start)
 
   const palette =
     COMET_PALETTES[Math.floor(Math.random() * COMET_PALETTES.length)]!
@@ -277,6 +306,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
     const trySpawn = (
       aimNdc?: { x: number; y: number },
       recycleIfFull = false,
+      fromClick = false,
     ) => {
       let slot = meteorsRef.current.find((meteor) => !meteor.active)
       if (!slot) {
@@ -286,7 +316,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
           meteor.progress >= oldest.progress ? meteor : oldest,
         )
       }
-      activateMeteor(slot, camera, crossText, aimNdc)
+      activateMeteor(slot, camera, crossText, aimNdc, fromClick)
       return true
     }
 
@@ -295,8 +325,8 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
         ? CROSS_SPAWN_MIN + Math.random() * CROSS_SPAWN_SPAN
         : SKY_SPAWN_MIN + Math.random() * SKY_SPAWN_SPAN
 
-    // Click empty space → comet. Clicks on a planet are left for storm lightning
-    // (Shells consumes spaceClick when the pointer is over a shell).
+    // Click empty space → comet. Aim through the click; a hit on debris
+    // shatters the rock (handled while the streak advances below).
     if (
       crossText &&
       pointerState.spaceClick &&
@@ -304,7 +334,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
       warpFade > 0.05
     ) {
       pointerState.spaceClick = false
-      if (trySpawn({ x: pointerState.x, y: pointerState.y }, true)) {
+      if (trySpawn({ x: pointerState.x, y: pointerState.y }, true, true)) {
         spawnTimerRef.current = nextGap()
         recordShootingStarTriggered()
       }
@@ -358,6 +388,20 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
       head.lerpVectors(meteor.start, meteor.end, t)
       const trailLen = 0.24 + (1 - t) * 0.06
       tail.lerpVectors(meteor.start, meteor.end, Math.max(0, t - trailLen))
+
+      if (
+        meteor.fromClick &&
+        crossText &&
+        hitDriftingRockWithSegment(meteor.prevHead, head)
+      ) {
+        // Impact — snuff the streak so the breakup owns the moment.
+        meteor.active = false
+        meteor.fromClick = false
+        mesh.visible = false
+        meteor.uniforms.uOpacity.value = 0
+        continue
+      }
+      meteor.prevHead.copy(head)
 
       meteor.uniforms.uHead.value.copy(head)
       meteor.uniforms.uTail.value.copy(tail)

@@ -524,11 +524,11 @@ function Shell({
       )
     }
 
-    // Ease-in coverage: first moments stay a near-invisible speck; most of the
-    // area arrives in the back half of the grow. Linear presence felt already
-    // "sized" within the first second.
+    // Cubic ease-in, biased past the invisible dead zone but not so far that
+    // the cell pops in. ~growT 0.24 ≈ old curve at ~2s — readable soon, still soft.
     const growT = presence.current
-    const coverageT = growT * growT * growT // cubic ease-in
+    const VISIBLE_AT = 0.24
+    const coverageT = Math.pow(VISIBLE_AT + (1 - VISIBLE_AT) * growT, 3)
     uniforms.uCursorRange.value =
       THREE.MathUtils.lerp(
         STORM_ANGLE_START,

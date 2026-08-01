@@ -388,9 +388,8 @@ void main() {
   envelope *= eye;
   // Soft fringe only — keep the body opaque so the chalk texture stays dense.
   envelope *= mix(1.0, vapourMask, 0.45);
-  // Birth from true zero — long fade so the speck isn't chalk-solid early.
-  float birth = smoothstep(0.0, 0.32, grow);
-  birth = birth * birth;
+  // Soft birth — short enough to read soon, long enough to avoid a chalk pop.
+  float birth = smoothstep(0.0, 0.16, grow);
   envelope *= birth;
 
   // Convective cells locked to the spun UV frame — hold until the cell has size.

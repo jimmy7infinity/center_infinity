@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { recordMeteorStrike } from '../lib/achievements'
 import { scrollState } from '../lib/scroll'
+import { createRockBurstSystem } from '../game/spaceFlyer/rockBurst'
+import {
+  setDriftingRockCollider,
+  setDriftingRockRayPick,
+} from './driftingRockBridge'
 import {
   createShellMaterial,
   getShellMaterialUniforms,
@@ -24,6 +30,14 @@ const DEPTH_BANDS: readonly { range: [number, number]; weight: number }[] = [
  */
 const SUN_DIR = new THREE.Vector3(-0.55, 0.86, -0.5).normalize()
 
+/** World hit radius pad — rocks are tiny on screen; streaks need forgiveness. */
+const MIN_HIT_RADIUS = 0.22
+
+const _ab = new THREE.Vector3()
+const _ac = new THREE.Vector3()
+const _closest = new THREE.Vector3()
+const _burstOrigin = new THREE.Vector3()
+
 type Rock = {
   active: boolean
   progress: number
@@ -31,6 +45,7 @@ type Rock = {
   scale: number
   start: THREE.Vector3
   end: THREE.Vector3
+  position: THREE.Vector3
   tumbleSpeed: THREE.Vector3
   baseRotation: THREE.Euler
 }
@@ -41,6 +56,8 @@ type Lobe = {
   freq: number
   phase: number
 }
+
+const _oc = new THREE.Vector3()
 
 function seededRandom(seed: number): () => number {
   let state = seed
@@ -171,6 +188,7 @@ function createRock(): Rock {
     scale: 1,
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
+    position: new THREE.Vector3(),
     tumbleSpeed: new THREE.Vector3(),
     baseRotation: new THREE.Euler(),
   }
@@ -244,6 +262,47 @@ function activateRock(rock: Rock, camera: THREE.PerspectiveCamera) {
   )
 }
 
+/** Nearer positive ray–sphere hit, or -1. */
+function raySphere(
+  origin: THREE.Vector3,
+  dir: THREE.Vector3,
+  centre: THREE.Vector3,
+  radius: number,
+) {
+  _oc.subVectors(origin, centre)
+  const b = _oc.dot(dir)
+  const c = _oc.lengthSq() - radius * radius
+  const disc = b * b - c
+  if (disc < 0) return -1
+  const s = Math.sqrt(disc)
+  const t0 = -b - s
+  const t1 = -b + s
+  if (t0 > 0.02) return t0
+  if (t1 > 0.02) return t1
+  return -1
+}
+
+function segmentHitsSphere(
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  center: THREE.Vector3,
+  radius: number,
+) {
+  _ab.subVectors(b, a)
+  const abLenSq = _ab.lengthSq()
+  if (abLenSq < 1e-10) {
+    return a.distanceToSquared(center) <= radius * radius
+  }
+  _ac.subVectors(center, a)
+  const t = THREE.MathUtils.clamp(_ac.dot(_ab) / abLenSq, 0, 1)
+  _closest.copy(a).addScaledVector(_ab, t)
+  return _closest.distanceToSquared(center) <= radius * radius
+}
+
+function hitRadiusFor(rock: Rock, geoRadius: number) {
+  return Math.max(rock.scale * geoRadius * 2.4, MIN_HIT_RADIUS)
+}
+
 /** Sparse tumbling debris, lit by the same terminator model as the shells. */
 export function DriftingRocks() {
   const meshRefs = useRef<(THREE.Mesh | null)[]>(
@@ -253,7 +312,7 @@ export function DriftingRocks() {
     Array.from({ length: POOL_SIZE }, () => createRock()),
   )
   const spawnTimerRef = useRef(2)
-  const scratchPosition = useMemo(() => new THREE.Vector3(), [])
+  const geoRadii = useRef<number[]>(Array.from({ length: POOL_SIZE }, () => 1))
 
   const geometries = useMemo(
     () =>
@@ -284,14 +343,78 @@ export function DriftingRocks() {
     [],
   )
 
+  const bursts = useMemo(
+    () =>
+      createRockBurstSystem({
+        disintegrate: true,
+        maxBursts: 6,
+      }),
+    [],
+  )
+
   useEffect(() => {
+    for (let i = 0; i < geometries.length; i++) {
+      geoRadii.current[i] = geometries[i].boundingSphere?.radius ?? 1
+    }
+
+    const destroyRock = (index: number) => {
+      const rock = rocksRef.current[index]
+      if (!rock?.active) return false
+      const mesh = meshRefs.current[index]
+      _burstOrigin.copy(rock.position)
+      // Match the visible boulder — a slight overshoot, not a screen-filling blast.
+      const fxSize = Math.max(rock.scale * geoRadii.current[index] * 1.2, 0.028)
+      bursts.spawn(_burstOrigin, fxSize)
+      rock.active = false
+      if (mesh) mesh.visible = false
+      recordMeteorStrike()
+      return true
+    }
+
+    setDriftingRockCollider((a, b) => {
+      const rocks = rocksRef.current
+      let best = -1
+      let bestDist = Infinity
+      for (let i = 0; i < POOL_SIZE; i++) {
+        const rock = rocks[i]
+        if (!rock.active) continue
+        const radius = hitRadiusFor(rock, geoRadii.current[i])
+        if (!segmentHitsSphere(a, b, rock.position, radius)) continue
+        const dist = a.distanceToSquared(rock.position)
+        if (dist < bestDist) {
+          bestDist = dist
+          best = i
+        }
+      }
+      if (best < 0) return false
+      return destroyRock(best)
+    })
+
+    setDriftingRockRayPick((origin, dir) => {
+      const rocks = rocksRef.current
+      let bestT = Infinity
+      for (let i = 0; i < POOL_SIZE; i++) {
+        const rock = rocks[i]
+        if (!rock.active) continue
+        // Wider than collision — pull the meteor plane onto nearby debris.
+        const radius = hitRadiusFor(rock, geoRadii.current[i]) * 1.8
+        const t = raySphere(origin, dir, rock.position, radius)
+        if (t > 0 && t < bestT) bestT = t
+      }
+      if (!Number.isFinite(bestT)) return null
+      return { distance: bestT }
+    })
+
     return () => {
+      setDriftingRockCollider(null)
+      setDriftingRockRayPick(null)
       material.dispose()
       for (const geometry of geometries) {
         geometry.dispose()
       }
+      bursts.dispose()
     }
-  }, [material, geometries])
+  }, [material, geometries, bursts])
 
   const uniforms = useMemo(
     () => getShellMaterialUniforms(material),
@@ -326,6 +449,7 @@ export function DriftingRocks() {
       if (!mesh) continue
 
       if (!rock.active || cleared) {
+        if (cleared) rock.active = false
         mesh.visible = false
         continue
       }
@@ -337,11 +461,11 @@ export function DriftingRocks() {
         continue
       }
 
-      scratchPosition.lerpVectors(rock.start, rock.end, rock.progress)
+      rock.position.lerpVectors(rock.start, rock.end, rock.progress)
       const elapsed = rock.progress * rock.duration
 
       mesh.visible = true
-      mesh.position.copy(scratchPosition)
+      mesh.position.copy(rock.position)
       mesh.rotation.set(
         rock.baseRotation.x + rock.tumbleSpeed.x * elapsed,
         rock.baseRotation.y + rock.tumbleSpeed.y * elapsed,
@@ -349,6 +473,8 @@ export function DriftingRocks() {
       )
       mesh.scale.setScalar(rock.scale)
     }
+
+    bursts.update(Math.min(0.05, delta))
   })
 
   return (
@@ -365,6 +491,11 @@ export function DriftingRocks() {
           renderOrder={5}
         />
       ))}
+      {bursts.pieceMeshes.map((mesh, index) => (
+        <primitive key={`shard-${index}`} object={mesh} />
+      ))}
+      <primitive object={bursts.sparkMesh} />
+      {bursts.dustMesh ? <primitive object={bursts.dustMesh} /> : null}
     </group>
   )
 }

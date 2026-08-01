@@ -18,6 +18,7 @@ import {
   ROCK_MESH_SCALE,
 } from './combat'
 import { flyerControls } from './controls'
+import { flyerAim, pickReticleRock } from './flyerAim'
 import { createRockBurstSystem } from './rockBurst'
 import { createRockCoatMaterial, getRockCoatUniforms } from './rockCoat'
 import {
@@ -29,7 +30,6 @@ import {
 
 type CombatFieldProps = {
   shipRef: RefObject<THREE.Group | null>
-  getNose: (out: THREE.Vector3) => void
 }
 
 const SUN_DIR = new THREE.Vector3(-0.55, 0.86, -0.5).normalize()
@@ -38,9 +38,9 @@ const TRACER_LENGTH = 3.2
 /** Fixed field size — no mid-run spawns. */
 const ROCKS_IN_PLAY = 16
 
-const _muzzle = new THREE.Vector3()
-const _nose = new THREE.Vector3()
 const _shotDir = new THREE.Vector3()
+const _rayDir = new THREE.Vector3()
+const _ndc = new THREE.Vector3()
 const _centres = new Map<string, THREE.Vector3>()
 const _hostRadii = new Map<string, number>()
 const _planets: PlanetBody[] = []
@@ -74,7 +74,7 @@ function seedRocks(rocks: Rock[]) {
 /**
  * Fixed set of orbiting debris + bolts + break FX. No respawn mid-run.
  */
-export function CombatField({ shipRef, getNose }: CombatFieldProps) {
+export function CombatField({ shipRef }: CombatFieldProps) {
   const rocks = useMemo(() => createRockPool(), [])
   const shots = useMemo(() => createShotPool(), [])
   const bursts = useMemo(() => createRockBurstSystem(), [])
@@ -133,12 +133,27 @@ export function CombatField({ shipRef, getNose }: CombatFieldProps) {
 
     stepRocks(rocks, _centres, _hostRadii, _planets, dt)
 
+    // Refine aim onto whatever rock sits under the hex — shots track the
+    // reticle at that depth instead of a fixed plane (no more under-passes).
+    const camera = state.camera
+    camera.updateMatrixWorld()
+    _ndc.set(flyerControls.aimX, flyerControls.aimY, 0.5).unproject(camera)
+    _rayDir.copy(_ndc).sub(camera.position).normalize()
+    const pick = pickReticleRock(camera.position, _rayDir, rocks)
+    if (pick) {
+      flyerAim.point.copy(pick.point)
+      flyerAim.direction.copy(pick.point).sub(ship.position)
+      if (flyerAim.direction.lengthSq() > 1e-8) {
+        flyerAim.direction.normalize()
+      }
+      flyerAim.muzzle.copy(ship.position).addScaledVector(flyerAim.direction, 0.42)
+    }
+
     const over = isGameOver()
     cooldown.current = Math.max(0, cooldown.current - dt)
     if (!over && flyerControls.fire && cooldown.current <= 0) {
-      getNose(_nose)
-      _muzzle.copy(ship.position).addScaledVector(_nose, 0.42)
-      if (fireShot(shots, _muzzle, _nose)) {
+      // Fire along reticle aim, not the lagging nose.
+      if (fireShot(shots, flyerAim.muzzle, flyerAim.direction)) {
         cooldown.current = FIRE_COOLDOWN
       }
     }

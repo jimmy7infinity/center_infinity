@@ -5,6 +5,7 @@ export type AchievementId =
   | 'go_faster'
   | 'sharp_shooter'
   | 'destroyer'
+  | 'meteor_strike'
   | 'star_gazer'
   | 'kamikaze'
 
@@ -40,12 +41,17 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   {
     id: 'sharp_shooter',
     name: 'sharp_shooter',
-    blurb: 'Destroyed a space rock',
+    blurb: 'Shot a space rock in the flyer',
   },
   {
     id: 'destroyer',
     name: 'destroyer',
-    blurb: 'Destroyed 10 space rocks',
+    blurb: 'Shot 10 space rocks in the flyer',
+  },
+  {
+    id: 'meteor_strike',
+    name: 'meteor_strike',
+    blurb: 'Hit a meteor with a shooting star',
   },
   {
     id: 'star_gazer',
@@ -128,11 +134,16 @@ export function unlockAchievement(id: AchievementId) {
   return true
 }
 
-/** Call once per destroyed rock. Handles sharp_shooter + destroyer. */
+/** In-game flyer rock kill. Handles sharp_shooter + destroyer. */
 export function recordRockDestroyed() {
   rockKills += 1
   unlockAchievement('sharp_shooter')
   if (rockKills >= DESTROYER_TARGET) unlockAchievement('destroyer')
+}
+
+/** Site debris destroyed by a click-spawned shooting star. */
+export function recordMeteorStrike() {
+  unlockAchievement('meteor_strike')
 }
 
 /** Call once per click-spawned shooting star. Handles star_gazer. */

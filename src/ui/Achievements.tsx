@@ -79,6 +79,16 @@ function DestroyerIcon({ className }: IconProps) {
   )
 }
 
+function MeteorStrikeIcon({ className }: IconProps) {
+  return (
+    <svg {...ICON_BASE} className={className}>
+      <circle cx="11.2" cy="11" r="2.6" />
+      <path d="M2.2 3.4 9.4 9.2" />
+      <path d="M7.8 8.4 9.8 7.2 8.8 9.6" />
+    </svg>
+  )
+}
+
 function StarGazerIcon({ className }: IconProps) {
   return (
     <svg {...ICON_BASE} className={className}>
@@ -106,6 +116,7 @@ const ICONS: Record<AchievementId, (props: IconProps) => ReactElement> = {
   go_faster: GoFasterIcon,
   sharp_shooter: SharpShooterIcon,
   destroyer: DestroyerIcon,
+  meteor_strike: MeteorStrikeIcon,
   star_gazer: StarGazerIcon,
   kamikaze: KamikazeIcon,
 }
@@ -205,7 +216,7 @@ export function Achievements() {
 
   return (
     <div
-      className={`pointer-events-none fixed inset-x-[max(1.25rem,env(safe-area-inset-left))] top-[max(4rem,calc(env(safe-area-inset-top)+2.75rem))] z-[55] right-[max(1.25rem,env(safe-area-inset-right))] md:inset-x-12 md:top-[4.25rem] ${
+      className={`pointer-events-none fixed inset-x-[max(1.25rem,env(safe-area-inset-left))] top-[max(5.5rem,calc(env(safe-area-inset-top)+4.5rem))] z-[55] right-[max(1.25rem,env(safe-area-inset-right))] md:inset-x-12 md:top-[5.75rem] ${
         warpHidden ? 'opacity-0' : 'opacity-100'
       } transition-opacity duration-300`}
       aria-hidden={warpHidden}
