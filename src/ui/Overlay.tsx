@@ -3,7 +3,7 @@ import { Reveal } from './Reveal'
 import { StatusChip } from './StatusChip'
 import { TypingLine } from './TypingLine'
 import { BrandMark, BrandStamp } from './BrandMark'
-import { ArrowIcon, SERVICE_ICONS } from './icons'
+import { ArrowIcon, ChevronDownDoubleIcon, SERVICE_ICONS } from './icons'
 import { SectionNav } from './SectionNav'
 import { useWarpHide } from './useWarpHide'
 import { GameHud } from './GameHud'
@@ -120,8 +120,11 @@ function Hero() {
         </div>
       </div>
 
-      <div className="hero-cue pointer-events-none absolute inset-x-0 bottom-10 flex justify-center">
-        <span className="label text-[0.625rem] text-regolith/50">Scroll</span>
+      <div className="hero-cue pointer-events-none absolute inset-x-0 bottom-3 flex justify-center md:bottom-4">
+        <div className="hero-scroll-cue flex flex-col items-center gap-1 text-regolith/45">
+          <span className="label text-[0.5625rem] tracking-[0.2em]">Scroll</span>
+          <ChevronDownDoubleIcon className="h-3 w-3" />
+        </div>
       </div>
     </section>
   )
@@ -341,9 +344,30 @@ function Contact() {
           className="inline-flex items-center gap-2.5 transition-colors hover:text-rim"
         >
           <BrandMark size="xs" />
-          <span>Center Infinity</span>
+          <span>
+            Center Infinity{' '}
+            <span className="text-regolith/40">by Jimmy Infinity</span>
+          </span>
         </a>
-        <span>Koh Phangan, Thailand</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>Koh Phangan, Thailand</span>
+          <a
+            href="https://x.com/jimmy7infinity"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-rim"
+          >
+            X
+          </a>
+          <a
+            href="https://github.com/jimmy7infinity"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-rim"
+          >
+            GitHub
+          </a>
+        </span>
         <a href="#top" className="transition-colors hover:text-rim">
           Back to the top
         </a>

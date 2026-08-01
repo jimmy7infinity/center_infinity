@@ -5,8 +5,8 @@ import * as THREE from 'three'
  * so rocks/meteors stay locked to the same view while rendering above the DOM.
  */
 export const cameraBridge = {
-  position: new THREE.Vector3(0, 0, 27),
-  target: new THREE.Vector3(0, 0, -2),
+  position: new THREE.Vector3(0, -0.2, 27),
+  target: new THREE.Vector3(0, 1.15, -2),
   fov: 42,
   ready: false,
 }

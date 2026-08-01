@@ -8,8 +8,8 @@
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
   /* Wide geometric display — hero wordmark. */
   --font-display: 'Science Gothic', 'Switzer', ui-sans-serif, system-ui, sans-serif;
-  /* Smooth cabinet / coin-op display — GAME OVER stingers only. */
-  --font-arcade: 'Audiowide', ui-sans-serif, system-ui, sans-serif;
+  /* Sci-fi display — GAME OVER stingers only. */
+  --font-arcade: 'Orbitron', ui-sans-serif, system-ui, sans-serif;
 
   /* Cold blue-void field. Text is cool silver, not neutral grey. */
   --color-void: #0e1016;
@@ -95,18 +95,19 @@ html.game-active * {
 @utility game-over-title {
   font-family: var(--font-arcade);
   font-size: clamp(1.75rem, 6vw, 3.75rem);
-  font-weight: 400;
+  font-weight: 550;
   line-height: 1.1;
   letter-spacing: 0.28em;
   text-indent: 0.28em;
   text-transform: uppercase;
-  color: var(--color-rim);
+  color: #ff2a2a;
   animation: game-over-blink 1.05s steps(1, end) infinite;
 }
 
 @utility game-over-score {
   font-family: var(--font-arcade);
   font-size: clamp(0.7rem, 1.8vw, 0.95rem);
+  font-weight: 550;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-rim) 70%, transparent);
@@ -136,6 +137,26 @@ html.game-active * {
 /* Scroll cue: waits for hero copy, then leaves with the hero beat. */
 @utility hero-cue {
   opacity: calc((1 - var(--past-hero, 0)) * var(--hero-copy, 0));
+}
+
+@keyframes hero-scroll-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+@utility hero-scroll-cue {
+  animation: hero-scroll-bounce 1.55s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll-cue {
+    animation: none;
+  }
 }
 
 /**
@@ -215,14 +236,33 @@ html.game-active * {
   animation-delay: 0.36s;
 }
 
-/* Easter-egg achievements — top-left icon tray with drawer announce/tooltip. */
+/* Easter-egg achievements — horizontal tray; drawers push following icons. */
+.achievement-tray {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: min(100%, calc(100vw - 10rem));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.achievement-tray::-webkit-scrollbar {
+  display: none;
+}
+
 .achievement-chip {
   list-style: none;
+  flex: 0 0 auto;
 }
 
 .achievement-chip__hit {
   display: inline-flex;
+  flex-direction: row;
   align-items: stretch;
+  height: 1.75rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -236,7 +276,6 @@ html.game-active * {
   width: 1.75rem;
   height: 1.75rem;
   flex-shrink: 0;
-  align-self: stretch;
   border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
   background: color-mix(in oklab, var(--color-void) 72%, transparent);
   transition:
@@ -244,6 +283,7 @@ html.game-active * {
     color 0.25s ease;
 }
 
+/* Width animates in-flow so later chips slide right when a drawer opens. */
 .achievement-chip__drawer {
   display: grid;
   grid-template-columns: 0fr;
@@ -253,13 +293,12 @@ html.game-active * {
 
 .achievement-chip__panel {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.1rem;
+  align-items: center;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+  height: 100%;
+  padding: 0 0.7rem 0 0.55rem;
   border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
   border-left: 0;
   background: color-mix(in oklab, var(--color-void) 72%, transparent);
@@ -268,14 +307,6 @@ html.game-active * {
   transition:
     opacity 0.22s ease,
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.achievement-chip__eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 400;
-  letter-spacing: 0.025em;
-  color: var(--color-regolith);
 }
 
 .achievement-chip__name {

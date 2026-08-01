@@ -135,7 +135,7 @@ function AchievementChip({
         type="button"
         className="achievement-chip__hit"
         aria-label={
-          announcing ? `achievement_unlocked ${def.name}` : def.name
+          announcing ? `achievement unlocked: ${def.name}` : def.name
         }
       >
         <span className="achievement-chip__icon" aria-hidden>
@@ -143,22 +143,15 @@ function AchievementChip({
         </span>
         <span className="achievement-chip__drawer" aria-hidden={!announcing}>
           <span className="achievement-chip__panel">
-            {announcing ? (
-              <>
-                <span className="achievement-chip__eyebrow">
-                  achievement_unlocked
-                </span>
-                <span className="achievement-chip__name">{def.name}</span>
-              </>
-            ) : (
-              <span className="achievement-chip__name">{def.name}</span>
-            )}
+            <span className="achievement-chip__name">
+              {announcing ? `achievement unlocked: ${def.name}` : def.name}
+            </span>
           </span>
         </span>
       </button>
       {announcing ? (
         <span className="sr-only" role="status" aria-live="polite">
-          achievement_unlocked {def.name}
+          achievement unlocked: {def.name}
         </span>
       ) : null}
     </li>
@@ -206,12 +199,12 @@ export function Achievements() {
 
   return (
     <div
-      className={`pointer-events-none fixed left-6 top-20 z-[55] flex flex-col items-start md:left-12 md:top-[5.5rem] ${
+      className={`pointer-events-none fixed inset-x-6 top-16 z-[55] md:inset-x-12 md:top-[4.25rem] ${
         warpHidden ? 'opacity-0' : 'opacity-100'
       } transition-opacity duration-300`}
       aria-hidden={warpHidden}
     >
-      <ul className="pointer-events-auto flex flex-col items-start gap-1.5">
+      <ul className="achievement-tray pointer-events-auto">
         {unlocked.map((id) => (
           <AchievementChip
             key={id}

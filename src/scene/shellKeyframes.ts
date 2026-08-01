@@ -268,7 +268,8 @@ export const SHELL_MOTIONS: ShellMotion[] = [
  * straight ahead on a wide lens.
  */
 export const CAMERA_KEYFRAMES: CameraKeyframe[] = [
-  { at: beatIndex('hero'), position: [0, 0, 27], target: [0, 0, -2], fov: 42 },
+  // Slight look-up so the crescent cluster sits a touch below centre (less top-heavy).
+  { at: beatIndex('hero'), position: [0, -0.2, 27], target: [0, 1.15, -2], fov: 42 },
   {
     at: beatIndex('services'),
     position: [-1.5, 0.4, 25.2],

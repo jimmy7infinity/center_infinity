@@ -79,6 +79,16 @@ export function ArrowIcon({ className }: IconProps) {
   )
 }
 
+/** Double chevron down — hero scroll cue. */
+export function ChevronDownDoubleIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className} viewBox="0 0 16 16">
+      <path d="M3.2 3.6 8 7.8l4.8-4.2" />
+      <path d="M3.2 8.4 8 12.6l4.8-4.2" />
+    </svg>
+  )
+}
+
 export const SERVICE_ICONS = {
   stack: StackIcon,
   grid: GridIcon,

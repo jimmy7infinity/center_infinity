@@ -122,7 +122,7 @@ function BackgroundScene({
         alpha: false,
         powerPreference: 'high-performance',
       }}
-      camera={{ position: [0, 0, 27], fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: [0, -0.2, 27], fov: 42, near: 0.1, far: 200 }}
     >
       <color attach="background" args={[VOID]} />
       <ReadySignal onReady={onReady} />
@@ -147,7 +147,7 @@ function ForegroundDebris({ tier }: { tier: QualityTier }) {
         premultipliedAlpha: true,
         powerPreference: 'high-performance',
       }}
-      camera={{ position: [0, 0, 27], fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: [0, -0.2, 27], fov: 42, near: 0.1, far: 200 }}
       // R3F sets pointer-events:auto on the root; className alone loses the fight.
       style={{ background: 'transparent', pointerEvents: 'none' }}
       onCreated={({ gl }) => {

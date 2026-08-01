@@ -1,7 +1,11 @@
 # Center Infinity
 
-Studio site. A scroll-driven WebGL scene of nested, rim-lit spheres that the
-camera travels inward through, with the copy layered over it as real DOM.
+Studio site for [Center Infinity](https://centerinfinity.com). A scroll-driven
+WebGL field of nested, rim-lit crescent moons — the logo as a living scene —
+with copy layered over it as real DOM.
+
+Triple-click the hero mark to enter a short space-flyer easter egg; finish or
+time out and the existing warp loop returns you to the hero.
 
 ## Commands
 
@@ -10,6 +14,7 @@ pnpm install
 pnpm dev        # http://localhost:5173
 pnpm build      # typecheck + production build
 pnpm preview    # serve dist/
+pnpm start      # production static server (Railway / PORT)
 pnpm typecheck
 ```
 
@@ -18,19 +23,31 @@ pnpm typecheck
 React 19 · TypeScript · Vite · Three.js · React Three Fiber · postprocessing ·
 Lenis · Tailwind CSS v4
 
+Typography: Switzer (UI) · Science Gothic (hero wordmark) · Geist Mono (data) ·
+Orbitron (arcade GAME OVER)
+
 ## How the scene works
 
 ```text
-Lenis  →  scrollState (mutable singleton)  →  useFrame  →  camera position + look target
-             ↑ beat, warp                            └→  shell position / lightDir / intensity
-             │
-   section anchors ([data-beat])
+Lenis + hard section pager
+        ↓
+scrollState (mutable singleton: beat, warp, jump)
+        ↓
+useFrame → camera pose + shell poses / lights
+        ↓
+cameraBridge → foreground debris canvas (rocks / meteors)
 ```
 
 Scroll is written to a plain mutable object rather than React state, so moving
-the camera and shells never triggers a re-render. `CameraRig` and each shell
-damp toward their targets each frame, which keeps motion frame-rate independent
-and adds inertia on top of Lenis' own smoothing.
+the camera and shells never triggers a re-render. Shells and the camera ease
+toward their beat targets each frame (frame-rate independent damping).
+
+### Hard section paging
+
+Wheel, touch, and keys advance **exactly one beat** per gesture
+(`src/lib/scroll.ts`). Mid-glide input is ignored so a trackpad flick cannot
+chain past the next composition. The right-rail / mobile dots may jump to any
+beat. During the flyer minigame, paging is paused.
 
 ### Beats are anchored to sections, not to a global percentage
 
@@ -41,35 +58,47 @@ of those elements sits centred in the viewport. An integer beat therefore means
 "this section is centred and its tableau is exactly composed", however tall the
 sections happen to be. Fractional beats interpolate between neighbours.
 
-This is why adding a section means three edits: an id in `BEATS`, a `data-beat`
-on the markup, and a keyframe at that index in every table. A mismatch logs a
-warning in dev.
+Adding a section means three edits: an id in `BEATS`, a `data-beat` on the
+markup, and a keyframe at that index in every shell / camera table. A mismatch
+logs a warning in dev.
 
 ### Composition is resolved against the live aspect ratio
 
 Keyframes in `src/scene/shellKeyframes.ts` store composition fractions
 (`fx`, `fy`, `z`) rather than world coordinates, resolved every frame in units of
-the **smaller** viewport axis. On landscape that is the height, which reproduces
-the desktop framing the numbers were tuned against; on portrait it becomes the
-width, so the cluster scales down to fit instead of overflowing, and lifts into
-the upper half to leave the lower half for copy.
+the **smaller** viewport axis. On landscape that is the height; on portrait it
+becomes the width, so the cluster scales down to fit and lifts into the upper
+half to leave room for copy.
 
 Beat `hero` is the Center Infinity logo composition (`docs/reference/logo.png`):
-four nested crescents with A and B top-lit, C and D bottom-lit. On first paint
-each shell snaps to that pose rather than fading in individually.
+four nested crescents with A and B top-lit, C and D bottom-lit. The hero camera
+looks slightly up so the cluster sits a touch below centre.
+
+### Dual canvases
+
+Background WebGL owns the moons and starfield. A second canvas above the DOM
+carries drifting rocks and shooting stars so debris can cross in front of the
+type. Both share pose via `src/lib/cameraBridge.ts`.
+
+### Cursor storms and lightning
+
+Hovering a moon grows a soft weather cell (`SHELL_CURSOR_LIGHT` in
+`shellMaterial.ts`) — chalky vapour with a mild spiral, calm eye, and geodesic
+coverage that eases in from a speck. Clicking the storm fires a thin violet
+bolt that grows from the eye as a jagged ray (not a mirrored diameter); stacked
+clicks raise charge (brightness, hold, branches). Clicking empty space spawns
+comets through the click (pooled, spam-friendly, capped).
 
 ### One lighting model, no scene lights
 
 `src/scene/shellMaterial.ts` is a custom `ShaderMaterial` with its own
 `uLightDir`, intensity, tint, and terminator — there are no lights in the scene
-at all. The drifting rocks share the same material (with `SHELL_NORMAL_MAP`
-undefined, since they have no sphere UVs), which is what keeps them tonally
-consistent with the moons instead of reading as flat front-lit shapes.
+at all. Drifting rocks share the same material (without surface maps), which
+keeps them tonally consistent with the moons.
 
 Materials use **NormalBlending with `depthWrite: true`**, so shells and rocks
 occlude each other and the stars behind them. The starfield uses additive
-blending. Radii and offsets are deliberately irregular so the lit arcs don't line
-up concentrically.
+blending.
 
 ### Surface detail is generated, and seamless
 
@@ -83,53 +112,39 @@ Five properties are load-bearing and easy to break:
 
 - **The frequency ladder is deliberate.** Every layer is stored at a resolution
   where its finest octave still spans two texels, and is upsampled at most once.
-  `buildNoiseLayer` throws if a layer would alias. An earlier version built all
-  relief at quarter resolution and upsampled it twice, which turned the
-  derivative into flat facets, and asked for noise periods up to 11x the storage
-  width, so the layers meant to supply fine detail were just aliased hash. Both
-  read on screen as "smooth low-poly CG".
+  `buildNoiseLayer` throws if a layer would alias.
 - **Micro-relief is tiled, not baked in.** At `DETAIL_REPEAT` the 512px tile
-  resolves like a 4096x2048 equirect map for 1/32 of the pixels. An equirect map
-  fine enough to stay crisp when a shell fills the frame is not affordable to
-  generate.
+  resolves like a much larger equirect for fine pixels without generating a
+  giant map.
 - **Reflectance is separate from relief.** Shading alone cannot produce the tonal
-  range of a lunar photograph, and craters vanish wherever the surface faces the
-  light directly. Every crater gets a faint bright rim and dark floor regardless
-  of age; only the rare fresh ones get the bright ejecta blanket. The map is
-  rescaled to a mean of exactly 1.0, so its contrast can be retuned without
-  de-calibrating the shell keyframe intensities.
-- **The noise is periodic.** The map wraps around a sphere, so a mismatch between
-  u=1 and u=0 is a real cliff that the Sobel pass renders as a hard vertical
-  seam. Octaves double by exactly 2 and every lattice period is a whole number of
-  cells; layer sampling and crater stamping wrap in x and clamp in y. The detail
-  tile wraps in both axes so it can repeat.
-- **The tangent basis is analytical.** Screen-space derivatives jump by a full
-  unit across the UV seam. The shader derives the basis from `uv` instead, using
-  three.js' sphere parametrisation `P = (-cos u sin v, cos v, sin u sin v)`.
+  range of a lunar photograph. The map is rescaled to a mean of exactly 1.0.
+- **The noise is periodic.** The map wraps around a sphere; octaves and crater
+  stamping wrap in x and clamp in y so the UV seam stays invisible.
+- **The tangent basis is analytical.** The shader derives the basis from `uv`
+  using three.js' sphere parametrisation, avoiding screen-space derivative jumps
+  across the seam.
 
-Two things the shader does that are worth knowing about:
-
-- Near the poles the equirect mapping collapses in u and smears the detail tile
-  into a radial sunburst, so there the tile is read through a top-down
-  projection instead and blended in by latitude.
-- The detail tile's blue channel carries micro-scale tone rather than a normal
-  component — the shader takes z from the base map, so the channel was free.
-
-The terminator width is a real trade-off, not a magic number. Too narrow and
-relief saturates to fully lit or fully black, so craters render as pepper; too
-wide and the crescent edge goes soft and stops reading as the logo.
+Near the poles the equirect mapping collapses in u, so the detail tile is read
+through a top-down projection and blended in by latitude. The detail tile's blue
+channel carries micro-scale tone rather than a normal component.
 
 ### The warp outro loops back
 
-The final beat is a tall runway. `scrollState.warp` ramps across it and drives a
-second starfield layer of radial line segments that stretch and scroll inward,
-plus a `--warp-veil` CSS variable that dissolves the DOM copy. At the end of the
-runway the screen is almost entirely streaks, so `scroll.ts` cuts to the top and
-holds the warp briefly while the hero recomposes — the jump itself is invisible.
+The final beat is a tall runway. `scrollState.jump` (true hyperjump — intro,
+runway, loop flash) clears solid bodies; `scrollState.warp` also includes a
+small velocity stretch for the starfield. Chrome hides on `jump`, not velocity
+warp, so section paging does not flash the header.
 
-The loop is deliberate rather than an infinite scroll: it only fires at the very
-end of the runway, it is disabled when smoothing is off, and there is a real
-"Back to the top" link in the footer.
+At the end of the runway the screen is almost entirely streaks, so `scroll.ts`
+cuts to the top and holds the warp briefly while the hero recomposes.
+
+### Space flyer easter egg
+
+Triple-click the hero crescent within 1s → `gameMode.enter('space-flyer')`.
+UI fades, section paging pauses, and `src/game/spaceFlyer/` mounts a chase-cam
+flight around the existing moons (Kenney Space Kit speeder, CC0 — see
+`public/models/`). Session achievements live in `src/lib/achievements.ts`.
+Design notes: `docs/superpowers/specs/2026-08-01-space-flyer-minigame-design.md`.
 
 ## Performance notes
 
@@ -148,10 +163,6 @@ The things that matter, in order of impact:
 Measured on an Apple M4, production build: 60 FPS at every beat including the
 warp, and 59 FPS at 3.7M pixels (2560x1440). Before these changes the same scene
 ran at 14 FPS.
-
-The surface shader reads four textures per fragment — base normal, reflectance,
-and the detail tile through two projections. That is the cost of the close-range
-fidelity, and it is what the remaining headroom is spent on.
 
 ## Capability tiers
 

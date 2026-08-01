@@ -4,7 +4,10 @@ import * as THREE from 'three'
 import { scrollState, getIntroArrive, hasEntered } from '../lib/scroll'
 import { publishCamera } from '../lib/cameraBridge'
 import { pointerState } from '../lib/pointer'
-import { unlockAchievement } from '../lib/achievements'
+import {
+  recordLightningStrike,
+  unlockAchievement,
+} from '../lib/achievements'
 import { isGameActive } from '../lib/gameMode'
 import { createPlanetSurface } from './lunarSurface'
 import {
@@ -38,7 +41,7 @@ const CAMERA_DAMP_TARGET = 2.1
 
 const INTRO_FAR_Z = 48
 const INTRO_FAR_FOV = 52
-const INTRO_FAR_TARGET = new THREE.Vector3(0, 0, -2)
+const INTRO_FAR_TARGET = new THREE.Vector3(0, 1.15, -2)
 
 /**
  * How far off the surface the cursor light floats, as a share of the radius.
@@ -476,7 +479,7 @@ function Shell({
     // Click storm → one leader from the eye. Charge only brightens / holds
     // (and rarely unlocks a short mid-stroke fork) — never extra spokes.
     // Gate matches the shader (`step(0.12, grow)`) so we never "strike"
-    // (or award zeus) when the bolt would be invisible.
+    // when the bolt would be invisible. Zeus only counts full-grown storms.
     if (pointerState.spaceClick && frontShellId === motion.id) {
       pointerState.spaceClick = false
       if (presence.current > 0.12) {
@@ -484,7 +487,7 @@ function Shell({
         lightningSeed.current = Math.random() * 1000
         lightningAge.current = 0
         lightningActive.current = true
-        unlockAchievement('zeus')
+        if (presence.current >= 1) recordLightningStrike()
       }
     }
 

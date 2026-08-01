@@ -25,7 +25,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   {
     id: 'zeus',
     name: 'zeus',
-    blurb: 'Struck lightning from a storm',
+    blurb: 'Struck lightning 5 times in a full storm',
   },
   {
     id: 'gamer',
@@ -65,12 +65,14 @@ const BY_ID = Object.fromEntries(
 
 const DESTROYER_TARGET = 10
 const STAR_GAZER_TARGET = 5
+const ZEUS_TARGET = 5
 
 const unlocked = new Set<AchievementId>()
 /** Discovery order — newest unlocks append at the end of the tray. */
 const unlockedOrder: AchievementId[] = []
 let rockKills = 0
 let starTriggers = 0
+let lightningStrikes = 0
 /** Head of queue is the chip currently announcing via its drawer. */
 const announceQueue: AchievementId[] = []
 const listeners = new Set<() => void>()
@@ -137,4 +139,10 @@ export function recordRockDestroyed() {
 export function recordShootingStarTriggered() {
   starTriggers += 1
   if (starTriggers >= STAR_GAZER_TARGET) unlockAchievement('star_gazer')
+}
+
+/** Call once per lightning strike in a fully grown storm. Handles zeus. */
+export function recordLightningStrike() {
+  lightningStrikes += 1
+  if (lightningStrikes >= ZEUS_TARGET) unlockAchievement('zeus')
 }
