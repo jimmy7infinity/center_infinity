@@ -28,13 +28,13 @@ function Effects({ tier }: { tier: QualityTier }) {
 
   if (tier === 'medium') {
     return (
-      <EffectComposer>
+      <EffectComposer multisampling={0}>
         <Bloom
-          intensity={0.42}
-          luminanceThreshold={0.28}
-          luminanceSmoothing={0.18}
+          intensity={0.38}
+          luminanceThreshold={0.3}
+          luminanceSmoothing={0.2}
           mipmapBlur
-          resolutionScale={0.55}
+          resolutionScale={0.4}
         />
         <Vignette offset={0.3} darkness={0.68} />
       </EffectComposer>

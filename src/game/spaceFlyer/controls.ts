@@ -1,3 +1,5 @@
+import { prefersTouchControls } from '../../lib/touch'
+
 /**
  * Mutable input for the space flyer. Attached while the game is mounted;
  * read every frame from the R3F loop — no React re-renders on key repeat.
@@ -16,9 +18,11 @@ export const flyerControls = {
   /** D / → — bank & turn right (plane-style). */
   bankRight: false,
   /**
-   * Latched by a double-tap W. SpaceFlyer consumes it once per burst.
+   * Latched by a double-tap W / mobile burst pad. SpaceFlyer consumes it once.
    */
   burstQueued: false,
+  /** True while virtual pads own input (auto-fire, no mouse aim). */
+  touchMode: false,
 }
 
 /** Ignore aim until the pointer leaves the logo-click nest. */
@@ -31,17 +35,33 @@ let gateOriginArmed = false
 let gateOriginX = 0
 let gateOriginY = 0
 let pointerFire = false
+let touchThrust = false
 let lastWDownMs = 0
+let touchMode = false
 
 function syncThrust() {
+  if (touchMode) {
+    flyerControls.thrust = touchThrust
+    return
+  }
   flyerControls.thrust = pressed.has('KeyW') || pressed.has('ArrowUp')
 }
 
 function syncFire() {
+  // Touch flights always shoot — one less thumb, and the pad is already busy.
+  if (touchMode) {
+    flyerControls.fire = true
+    return
+  }
   flyerControls.fire = pointerFire || pressed.has('Space')
 }
 
 function syncBank() {
+  if (touchMode) {
+    flyerControls.bankLeft = false
+    flyerControls.bankRight = false
+    return
+  }
   flyerControls.bankLeft = pressed.has('KeyA') || pressed.has('ArrowLeft')
   flyerControls.bankRight = pressed.has('KeyD') || pressed.has('ArrowRight')
 }
@@ -132,18 +152,24 @@ function onKeyUp(event: KeyboardEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
+  if (touchMode) return
+  if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') return
   applyPointerAim(event.clientX, event.clientY)
 }
 
 function onPointerDown(event: PointerEvent) {
-  if (event.button !== 0 && event.pointerType === 'mouse') return
+  if (touchMode) return
+  if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') return
+  if (event.button !== 0) return
   pointerFire = true
   applyPointerAim(event.clientX, event.clientY)
   syncFire()
 }
 
 function onPointerUp(event: PointerEvent) {
-  if (event.button !== 0 && event.pointerType === 'mouse') return
+  if (touchMode) return
+  if (event.pointerType !== 'mouse' && event.pointerType !== 'pen') return
+  if (event.button !== 0) return
   pointerFire = false
   syncFire()
 }
@@ -151,6 +177,7 @@ function onPointerUp(event: PointerEvent) {
 function onBlur() {
   pressed.clear()
   pointerFire = false
+  touchThrust = false
   lastWDownMs = 0
   flyerControls.burstQueued = false
   syncThrust()
@@ -158,11 +185,40 @@ function onBlur() {
   syncBank()
 }
 
+/** Stick NDC from the virtual pad (−1..1). Reticle follows for feedback. */
+export function setTouchAim(nx: number, ny: number) {
+  if (!touchMode) return
+  const aimX = Math.max(-1, Math.min(1, nx))
+  const aimY = Math.max(-1, Math.min(1, ny))
+  flyerControls.aimX = aimX
+  flyerControls.aimY = aimY
+  flyerControls.clientX = (aimX * 0.5 + 0.5) * window.innerWidth
+  flyerControls.clientY = (-aimY * 0.5 + 0.5) * window.innerHeight
+}
+
+export function setTouchThrust(on: boolean) {
+  if (!touchMode) return
+  touchThrust = on
+  syncThrust()
+}
+
+export function queueTouchBurst() {
+  if (!touchMode) return
+  flyerControls.burstQueued = true
+}
+
+export function isTouchFlight() {
+  return touchMode
+}
+
 /** Start listening; returns teardown. */
 export function attachFlyerControls() {
-  aimGated = true
+  touchMode = prefersTouchControls()
+  flyerControls.touchMode = touchMode
+  aimGated = !touchMode
   gateOriginArmed = false
   pointerFire = false
+  touchThrust = false
   lastWDownMs = 0
   setAimCentered()
   flyerControls.thrust = false
@@ -171,6 +227,9 @@ export function attachFlyerControls() {
   flyerControls.bankRight = false
   flyerControls.burstQueued = false
   pressed.clear()
+  syncFire()
+  syncThrust()
+  syncBank()
 
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -190,7 +249,10 @@ export function attachFlyerControls() {
     aimGated = false
     gateOriginArmed = false
     pointerFire = false
+    touchThrust = false
     lastWDownMs = 0
+    touchMode = false
+    flyerControls.touchMode = false
     flyerControls.thrust = false
     flyerControls.fire = false
     flyerControls.bankLeft = false

@@ -89,12 +89,10 @@ function compositionUnit(z: number, aspect: number): number {
 }
 
 /**
- * On portrait the composition is only as wide as the viewport, so it lands in the
- * vertical middle — right where the copy goes. Lifting it by a fixed fraction of
- * the frame height splits the screen instead: scene above, copy below.
+ * Portrait keeps the cluster vertically centred (no extra lift) so fx/fy/z and
+ * diameters match the desktop authoring — only the composition unit shrinks to
+ * the viewport width, which scales the whole silhouette uniformly.
  */
-const PORTRAIT_LIFT_FRAMES = 0.18
-
 function resolveFrame(
   fx: number,
   fy: number,
@@ -103,10 +101,7 @@ function resolveFrame(
   out: THREE.Vector3,
 ): THREE.Vector3 {
   const unit = compositionUnit(z, aspect)
-  // `unit / aspect` is the frame height at this depth when aspect < 1, so the
-  // lift is the same share of the screen at every depth.
-  const lift = aspect < 1 ? PORTRAIT_LIFT_FRAMES * (unit / aspect) : 0
-  return out.set((fx - 0.5) * unit, (0.5 - fy) * unit + lift, z)
+  return out.set((fx - 0.5) * unit, (0.5 - fy) * unit, z)
 }
 
 export function resolveShellRadius(

@@ -33,9 +33,15 @@ export function detectQuality(): QualityTier {
   const memory = nav.deviceMemory ?? 4
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches
   const smallViewport = Math.min(window.innerWidth, window.innerHeight) < 640
+  // Tablets still pay fill-rate tax on big panels; keep them off the heavy
+  // post stack even when core/memory hints look desktop-class.
+  const touchTablet =
+    coarsePointer && Math.min(window.innerWidth, window.innerHeight) < 1100
 
   if (cores <= 2 || memory <= 2) return 'static'
-  if (cores <= 4 || (coarsePointer && smallViewport)) return 'medium'
+  if (cores <= 4 || (coarsePointer && smallViewport) || touchTablet) {
+    return 'medium'
+  }
   return 'high'
 }
 
@@ -46,7 +52,8 @@ export function dprFor(tier: QualityTier): [number, number] {
     case 'high':
       return [1, 1.75]
     case 'medium':
-      return [1, 1.25]
+      // Cap harder on high-DPI phones — fill rate dominates over aliasing.
+      return [1, 1.15]
     case 'static':
       return [1, 1]
     default: {

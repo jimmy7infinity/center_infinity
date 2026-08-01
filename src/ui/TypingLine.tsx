@@ -87,7 +87,7 @@ export function TypingLine() {
 
   return (
     <p
-      className="mt-4 w-fit max-w-full font-mono text-[0.6875rem] tracking-wide text-regolith/70 [text-indent:0.025em] md:text-[0.75rem]"
+      className="mt-1.5 w-fit max-w-full font-mono text-[0.625rem] tracking-wide text-regolith/70 [text-indent:0.025em] md:mt-4 md:text-[0.75rem]"
       aria-live="polite"
     >
       <span className="text-regolith/45">we build:</span>{' '}

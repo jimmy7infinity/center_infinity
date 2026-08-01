@@ -46,6 +46,8 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   /* Lenis drives scroll; the document must stay tall but never show native bars. */
@@ -74,10 +76,53 @@ html.game-active .warp-veil {
   pointer-events: none;
 }
 
-/* Flight reticle replaces the system cursor. */
+/* Flight reticle replaces the system cursor — mouse/trackpad only. */
+@media (hover: hover) and (pointer: fine) {
+  html.game-active,
+  html.game-active * {
+    cursor: none !important;
+  }
+}
+
+/* Keep thumbs from selecting / callouting while the pads are live. */
 html.game-active,
-html.game-active * {
-  cursor: none !important;
+html.game-active body {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  overflow: hidden;
+}
+
+/* Virtual flight pad — cold silver, large hit targets, no neon glow stack. */
+.mobile-pad-btn {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--color-rim) 22%, transparent);
+  background: color-mix(in oklab, var(--color-void) 55%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--color-rim) 75%, transparent);
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.mobile-pad-btn--thrust {
+  width: 5.75rem;
+  height: 5.75rem;
+  border-color: color-mix(in oklab, var(--color-rim) 30%, transparent);
+  color: var(--color-rim);
+}
+
+.mobile-pad-btn--thrust.is-active {
+  border-color: color-mix(in oklab, var(--color-glow) 55%, transparent);
+  background: color-mix(in oklab, var(--color-glow) 14%, var(--color-void));
+  color: var(--color-rim);
 }
 
 /* Classic arcade GAME OVER — mono, wide tracking, hard blink. */
@@ -245,21 +290,46 @@ html.game-active * {
   gap: 0;
   margin: 0;
   padding: 0;
-  max-width: min(100%, calc(100vw - 10rem));
+  max-width: min(100%, calc(100vw - 5.5rem));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .achievement-tray {
+    max-width: min(100%, calc(100vw - 10rem));
+  }
 }
 
 .achievement-tray::-webkit-scrollbar {
   display: none;
 }
 
+/*
+ * Each chip is icon | drawer. Closed = `auto 0fr` (true zero). Open/hover =
+ * `auto 1fr`, which grows in-flow and pushes later icons right.
+ */
 .achievement-chip {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 0fr;
+  align-items: stretch;
   list-style: none;
   flex: 0 0 auto;
+  width: max-content;
   margin: 0;
   padding: 0;
+  height: 1.75rem;
+  color: var(--color-glow);
+  transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.achievement-chip:hover,
+.achievement-chip:focus-within,
+.achievement-chip.is-announcing {
+  grid-template-columns: auto 1fr;
 }
 
 /* Share a border with the previous icon so the strip reads flush. */
@@ -268,16 +338,20 @@ html.game-active * {
 }
 
 .achievement-chip__hit {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: stretch;
+  display: block;
+  width: 1.75rem;
   height: 1.75rem;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-glow);
+  color: inherit;
   cursor: default;
+}
+
+.achievement-chip__hit:focus-visible {
+  outline: 1px solid color-mix(in oklab, var(--color-rim) 40%, transparent);
+  outline-offset: 2px;
 }
 
 .achievement-chip__icon {
@@ -285,7 +359,6 @@ html.game-active * {
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
-  flex-shrink: 0;
   border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
   background: color-mix(in oklab, var(--color-void) 72%, transparent);
   transition:
@@ -293,25 +366,21 @@ html.game-active * {
     color 0.25s ease;
 }
 
-/*
- * Width animates in-flow so later chips slide right when a drawer opens.
- * min-width:0 is required — flex defaults to min-width:auto, which kept each
- * closed drawer as wide as its label and looked like huge gaps.
- */
 .achievement-chip__drawer {
-  display: grid;
-  grid-template-columns: 0fr;
   min-width: 0;
   overflow: hidden;
-  transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.achievement-chip__clip {
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .achievement-chip__panel {
   display: flex;
   align-items: center;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
+  width: max-content;
   height: 100%;
   padding: 0 0.7rem 0 0.55rem;
   border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
@@ -329,32 +398,22 @@ html.game-active * {
   font-size: 0.6875rem;
   font-weight: 400;
   letter-spacing: 0.025em;
+  white-space: nowrap;
   color: var(--color-rim);
 }
 
-.achievement-chip__hit:hover .achievement-chip__icon,
-.achievement-chip__hit:focus-visible .achievement-chip__icon,
+.achievement-chip:hover .achievement-chip__icon,
+.achievement-chip:focus-within .achievement-chip__icon,
 .achievement-chip.is-announcing .achievement-chip__icon {
   border-color: color-mix(in oklab, var(--color-glow) 45%, transparent);
   color: var(--color-rim);
 }
 
-.achievement-chip__hit:hover .achievement-chip__drawer,
-.achievement-chip__hit:focus-visible .achievement-chip__drawer,
-.achievement-chip.is-announcing .achievement-chip__drawer {
-  grid-template-columns: 1fr;
-}
-
-.achievement-chip__hit:hover .achievement-chip__panel,
-.achievement-chip__hit:focus-visible .achievement-chip__panel,
+.achievement-chip:hover .achievement-chip__panel,
+.achievement-chip:focus-within .achievement-chip__panel,
 .achievement-chip.is-announcing .achievement-chip__panel {
   opacity: 1;
   transform: translateX(0);
-}
-
-.achievement-chip__hit:focus-visible {
-  outline: 1px solid color-mix(in oklab, var(--color-rim) 40%, transparent);
-  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -370,7 +429,7 @@ html.game-active * {
     opacity: 0;
   }
 
-  .achievement-chip__drawer,
+  .achievement-chip,
   .achievement-chip__panel {
     transition: none;
   }

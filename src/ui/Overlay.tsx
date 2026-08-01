@@ -41,10 +41,10 @@ function Header() {
         className="pointer-events-none fixed inset-x-0 top-0 z-[15] h-32 bg-gradient-to-b from-void via-void/75 to-transparent"
         aria-hidden
       />
-      <header className="fixed inset-x-0 top-0 z-20 flex items-center justify-between px-6 py-6 md:px-12">
+      <header className="fixed inset-x-0 top-0 z-20 flex items-center justify-between pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))] pb-5 md:px-12 md:pb-6 md:pt-6">
         <a
           href="#top"
-          className="relative z-20 flex items-center gap-3"
+          className="relative z-20 flex min-h-11 items-center gap-3"
           aria-label="Center Infinity"
         >
           <BrandMark size="md" decorative />
@@ -55,7 +55,7 @@ function Header() {
         <div className="relative z-20 flex flex-col items-end gap-1">
           <a
             href="#contact"
-            className="label transition-colors duration-300 hover:!text-rim"
+            className="label inline-flex min-h-11 items-center transition-colors duration-300 hover:!text-rim"
           >
             Start a project
           </a>
@@ -72,7 +72,8 @@ function Header() {
 
 /**
  * Plain wordmark in the dark band the crescents leave across the middle.
- * Effects wait for a real display face; typing line stays quiet underneath.
+ * Portrait and desktop share the same centre composition — moons stay
+ * vertically centred so the gap and the logo meet in the same place.
  */
 function Hero() {
   const clicksRef = useRef<{ times: number[] }>({ times: [] })
@@ -98,29 +99,27 @@ function Hero() {
     <section
       id="top"
       data-beat={'hero' satisfies BeatId}
-      // On landscape the mark sits in the dark band the crescents leave across
-      // the middle. On portrait the cluster itself is lifted into the upper half
-      // (PORTRAIT_LIFT_FRAMES), so the mark has to follow it up rather than sit
-      // dead centre — otherwise it lands under the moons.
-      className="relative flex min-h-screen select-none items-start justify-center px-6 pt-[38vh] md:items-center md:pt-0"
+      className="relative flex min-h-dvh min-h-screen select-none items-center justify-center px-5 sm:px-6"
     >
-      {/* Held at --hero-copy:0 until planets finish arriving, then fades in. */}
-      <div className="hero-copy flex w-full justify-center">
+      {/* Held at --hero-copy:0 until planets finish arriving, then fades in.
+          Portrait: nudge into the dark band and keep the stack tight. */}
+      <div className="hero-copy flex w-full translate-y-[1.5vh] justify-center md:translate-y-0">
         <div className="flex w-full max-w-lg flex-col items-center text-center">
           <div
-            className="relative z-[12] mb-5 cursor-pointer"
+            className="relative z-[12] mb-1.5 flex min-h-12 min-w-12 cursor-pointer items-center justify-center sm:mb-5 sm:min-h-14 sm:min-w-14"
             onClick={onMarkClick}
           >
             <BrandMark size="lg" className="opacity-95" decorative={false} />
           </div>
-          <h1 className="hero-wordmark relative z-[11] text-[clamp(0.95rem,2.2vw,1.35rem)] text-rim [text-shadow:0_0_24px_rgba(14,16,22,0.9),0_1px_2px_rgba(0,0,0,0.8)]">
+          <h1 className="hero-wordmark relative z-[11] text-[0.8rem] tracking-[0.16em] text-rim [text-shadow:0_0_24px_rgba(14,16,22,0.9),0_1px_2px_rgba(0,0,0,0.8)] md:text-[clamp(0.95rem,2.2vw,1.35rem)] md:tracking-[0.14em]">
             CENTER INFINITY
           </h1>
           <TypingLine />
         </div>
       </div>
 
-      <div className="hero-cue pointer-events-none absolute inset-x-0 bottom-3 flex justify-center md:bottom-4">
+      {/* Above the nav pill, with room so it isn't clipped by the home indicator. */}
+      <div className="hero-cue pointer-events-none absolute inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] flex justify-center md:bottom-4">
         <div className="hero-scroll-cue flex flex-col items-center gap-1 text-regolith/45">
           <span className="label text-[0.5625rem] tracking-[0.2em] [text-indent:0.2em]">
             Scroll
@@ -134,34 +133,42 @@ function Hero() {
 
 function Services() {
   return (
-    <section className="flex min-h-screen items-center px-6 md:px-12">
+    <section className="flex min-h-dvh min-h-screen items-center px-5 py-14 pb-[calc(4.25rem+env(safe-area-inset-bottom))] sm:px-6 md:px-12 md:py-0 md:pb-0">
       <div data-beat={'services' satisfies BeatId} className="w-full max-w-5xl">
         <Reveal>
-          <BrandStamp label="What we do" className="mb-6" />
+          <BrandStamp label="What we do" className="mb-4 md:mb-6" />
         </Reveal>
         <Reveal delay={80}>
-          {/* The positioning line the hero used to carry. */}
-          <p className="display mb-14 max-w-2xl text-[clamp(1.5rem,3.4vw,2.5rem)] text-balance-tight">
+          <p className="display mb-7 max-w-2xl text-[clamp(1.25rem,4vw,2.5rem)] text-balance-tight md:mb-14">
             Full-stack design and engineering for founders who need the thing to
-            actually exist — <span className="text-regolith">not a deck about it.</span>
+            actually exist —{' '}
+            <span className="text-regolith">not a deck about it.</span>
           </p>
         </Reveal>
 
-        {/* Translucent so the scene still reads through the panel — an opaque
-            card here looks like a dashboard dropped on top of the sky. */}
-        <ul className="grid gap-px overflow-hidden rounded-xl border border-white/8 bg-white/8 backdrop-blur-md sm:grid-cols-2">
+        {/*
+          Phone: tight rows — title + one line, no card chrome eating the fold.
+          Desktop/tablet: translucent 2×2 panel as before.
+        */}
+        <ul className="flex flex-col border-y border-white/10 md:grid md:grid-cols-2 md:gap-px md:overflow-hidden md:rounded-xl md:border md:border-white/8 md:bg-white/8 md:backdrop-blur-md">
           {services.map((service, i) => {
             const Icon = SERVICE_ICONS[service.icon]
             return (
-              <Reveal key={service.title} delay={140 + i * 70}>
-                <li className="group h-full bg-void/55 p-6 transition-colors duration-300 hover:bg-void/75 md:p-8">
-                  <span className="mb-5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-glow transition-colors duration-300 group-hover:border-glow/40">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <h3 className="display text-lg md:text-xl">{service.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-regolith">
-                    {service.detail}
-                  </p>
+              <Reveal key={service.title} delay={120 + i * 60}>
+                <li className="group border-b border-white/8 py-3.5 last:border-b-0 md:h-full md:border-b-0 md:bg-void/55 md:p-6 md:transition-colors md:duration-300 md:hover:bg-void/75 lg:p-8">
+                  <div className="flex items-start gap-3.5 md:block">
+                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 text-glow md:mb-5 md:h-9 md:w-9 md:rounded-lg md:transition-colors md:duration-300 md:group-hover:border-glow/40">
+                      <Icon className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="display text-[1.05rem] leading-tight md:text-lg lg:text-xl">
+                        {service.title}
+                      </h3>
+                      <p className="mt-1 text-[0.8125rem] leading-snug text-regolith md:mt-2 md:text-sm md:leading-relaxed">
+                        {service.detail}
+                      </p>
+                    </div>
+                  </div>
                 </li>
               </Reveal>
             )
@@ -175,6 +182,9 @@ function Services() {
 /**
  * One project per full-height section, so exactly one is ever on screen and the
  * scene gets a whole beat to move between them.
+ *
+ * Phone order: identity → image → short pitch → CTA.
+ * Highlights / stack unlock from `sm` up where there's air.
  */
 function Work() {
   return (
@@ -182,29 +192,29 @@ function Work() {
       {projects.map((project, i) => (
         <section
           key={project.name}
-          className="flex min-h-screen items-center px-6 py-20 md:px-12"
+          className="flex min-h-dvh min-h-screen items-center px-5 py-14 pb-[calc(4.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-20 md:px-12 md:pb-20"
         >
           <div
             data-beat={WORK_BEATS[i]}
-            className={`flex w-full max-w-6xl flex-col gap-10 lg:flex-row lg:items-center lg:gap-14 ${
+            className={`grid w-full max-w-6xl grid-cols-1 gap-5 sm:gap-8 lg:grid-cols-2 lg:items-center lg:gap-14 ${
               project.placeholder ? 'opacity-60' : ''
             }`}
           >
-            <article className="max-w-xl shrink-0 lg:w-[min(100%,28rem)]">
+            <div className="max-w-xl">
               <Reveal>
                 <BrandStamp
                   label={`Work / ${project.index}`}
-                  className="mb-7"
+                  className="mb-4 sm:mb-7"
                 />
               </Reveal>
 
               <Reveal delay={60}>
-                <div className="mb-5 flex flex-wrap items-center gap-3">
+                <div className="mb-3 flex flex-wrap items-center gap-2.5 sm:mb-5 sm:gap-3">
                   <StatusChip status={project.status} />
                   {project.categories.map((category) => (
                     <span
                       key={category}
-                      className="rounded-full border border-white/10 px-2.5 py-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-regolith"
+                      className="hidden rounded-full border border-white/10 px-2.5 py-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-regolith sm:inline-flex"
                     >
                       {category}
                     </span>
@@ -213,23 +223,52 @@ function Work() {
               </Reveal>
 
               <Reveal delay={100}>
-                <h2 className="display-lg text-[clamp(2.5rem,6vw,4.5rem)]">
+                <h2 className="display-lg text-[clamp(2rem,9vw,4.5rem)]">
                   {project.name}
                 </h2>
-                <p className="mt-4 text-xl text-glow md:text-2xl">
+                <p className="mt-2 text-base text-glow sm:mt-4 sm:text-xl md:text-2xl">
                   {project.tagline}
                 </p>
               </Reveal>
+            </div>
 
+            {project.image ? (
+              <Reveal
+                delay={140}
+                className="min-w-0 lg:row-span-2"
+              >
+                <a
+                  href={project.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block"
+                  aria-label={`Open ${project.name}`}
+                >
+                  <img
+                    src={project.image}
+                    alt={`${project.name} — live product`}
+                    className="aspect-[16/10] max-h-[28vh] w-full border border-white/10 object-cover object-top shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition duration-500 group-hover:border-glow/30 sm:max-h-[36vh] lg:aspect-auto lg:max-h-none"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </a>
+              </Reveal>
+            ) : null}
+
+            <div className="max-w-xl">
               <Reveal delay={160}>
-                <p className="mt-6 max-w-xl text-[0.9375rem] leading-relaxed text-regolith">
+                <p
+                  className={`max-w-xl text-[0.875rem] leading-relaxed text-regolith sm:text-[0.9375rem] ${
+                    project.image ? 'line-clamp-3 sm:line-clamp-none' : ''
+                  }`}
+                >
                   {project.description}
                 </p>
               </Reveal>
 
               {project.highlights.length > 0 && (
                 <Reveal delay={220}>
-                  <ul className="mt-8 grid gap-x-8 gap-y-3 border-t border-white/8 pt-6 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                  <ul className="mt-5 hidden gap-x-8 gap-y-3 border-t border-white/8 pt-5 sm:mt-8 sm:grid sm:grid-cols-3 sm:pt-6 lg:grid-cols-1 xl:grid-cols-3">
                     {project.highlights.map((highlight) => (
                       <li
                         key={highlight}
@@ -247,7 +286,7 @@ function Work() {
               )}
 
               <Reveal delay={280}>
-                <div className="mt-8 flex flex-wrap items-center gap-x-2 gap-y-2">
+                <div className="mt-4 hidden flex-wrap items-center gap-x-2 gap-y-2 sm:mt-8 sm:flex">
                   <span className="label mr-2 text-[0.625rem] text-regolith/50">
                     Built with
                   </span>
@@ -268,34 +307,14 @@ function Work() {
                     href={project.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group mt-9 inline-flex items-center gap-2.5 border-b border-white/20 pb-1.5 font-mono text-xs uppercase tracking-[0.16em] text-rim transition-colors duration-300 hover:border-glow hover:text-glow"
+                    className="group mt-5 inline-flex items-center gap-2.5 border-b border-white/20 pb-1.5 font-mono text-xs uppercase tracking-[0.16em] text-rim transition-colors duration-300 hover:border-glow hover:text-glow sm:mt-8"
                   >
                     View project
                     <ArrowIcon className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
                   </a>
                 </Reveal>
               )}
-            </article>
-
-            {project.image && (
-              <Reveal delay={140} className="min-w-0 flex-1">
-                <a
-                  href={project.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block"
-                  aria-label={`Open ${project.name}`}
-                >
-                  <img
-                    src={project.image}
-                    alt={`${project.name} — live product`}
-                    className="w-full border border-white/10 object-cover shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition duration-500 group-hover:border-glow/30"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </a>
-              </Reveal>
-            )}
+            </div>
           </div>
         </section>
       ))}
@@ -307,7 +326,7 @@ function Contact() {
   return (
     <section
       id="contact"
-      className="flex min-h-screen flex-col justify-center px-6 md:px-12"
+      className="flex min-h-dvh min-h-screen flex-col justify-center px-5 py-16 sm:px-6 md:px-12 md:py-0"
     >
       {/* The beat anchors on the headline block rather than the whole section, so
           the tableau composes with the copy centred instead of the footer. */}
@@ -325,22 +344,22 @@ function Contact() {
           </div>
         </Reveal>
         <Reveal delay={100}>
-          <h2 className="display-lg max-w-3xl text-[clamp(2.5rem,7vw,5.5rem)] text-balance-tight">
+          <h2 className="display-lg max-w-3xl text-[clamp(2.1rem,9vw,5.5rem)] text-balance-tight">
             Tell us what needs <span className="text-regolith">to exist.</span>
           </h2>
         </Reveal>
         <Reveal delay={200}>
           <a
             href="mailto:hello@centerinfinity.com"
-            className="group mt-12 inline-flex w-fit items-center gap-4 border-b border-white/25 pb-2 font-mono text-sm tracking-wide transition-colors duration-300 hover:border-glow hover:text-glow"
+            className="group mt-10 inline-flex max-w-full items-center gap-3 break-all border-b border-white/25 pb-2 font-mono text-sm tracking-wide transition-colors duration-300 hover:border-glow hover:text-glow sm:mt-12 sm:gap-4"
           >
             hello@centerinfinity.com
-            <ArrowIcon className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+            <ArrowIcon className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover:translate-x-1" />
           </a>
         </Reveal>
       </div>
 
-      <footer className="mt-32 flex flex-col gap-4 border-t border-white/8 pt-8 font-mono text-[0.6875rem] tracking-wide text-regolith/70 md:flex-row md:items-center md:justify-between">
+      <footer className="mt-20 flex flex-col gap-4 border-t border-white/8 pt-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] font-mono text-[0.6875rem] tracking-wide text-regolith/70 sm:mt-32 md:flex-row md:items-center md:justify-between">
         <a
           href="#top"
           className="inline-flex items-center gap-2.5 transition-colors hover:text-rim"
