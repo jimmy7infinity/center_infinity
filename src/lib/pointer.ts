@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { isGameActive } from './gameMode'
 
 /**
  * Mutable pointer singleton, read per-frame by the scene. Same shape and same
@@ -19,6 +20,13 @@ export const pointerState = {
    * and a light that parks wherever the last tap landed reads as a bug.
    */
   enabled: false,
+  /**
+   * Latched by a click on non-interactive empty space; the scene consumes and
+   * clears it. Used to fire a comet through the click.
+   */
+  spaceClick: false,
+  /** Written by shells each frame — pointer ray currently hits a planet. */
+  overShell: false,
 }
 
 export function usePointerTracking(active: boolean) {
@@ -59,17 +67,48 @@ export function usePointerTracking(active: boolean) {
       hasPrev = false
     }
 
+    const isChromeTarget = (target: EventTarget | null) =>
+      target instanceof Element &&
+      !!target.closest(
+        'a, button, input, textarea, select, label, [role="button"]',
+      )
+
+    // Storm clicks often land on DOM copy under the canvas. preventDefault on
+    // mousedown stops the browser from painting a text selection ("Scroll", etc).
+    const onMouseDown = (event: MouseEvent) => {
+      if (isGameActive() || isChromeTarget(event.target)) return
+      event.preventDefault()
+      window.getSelection()?.removeAllRanges()
+    }
+
+    const onClick = (event: MouseEvent) => {
+      if (isGameActive()) return
+      if (isChromeTarget(event.target)) return
+      // Keep NDC in sync even if the last move was skipped.
+      pointerState.x = (event.clientX / window.innerWidth) * 2 - 1
+      pointerState.y = -((event.clientY / window.innerHeight) * 2 - 1)
+      pointerState.presence = 1
+      pointerState.spaceClick = true
+      window.getSelection()?.removeAllRanges()
+    }
+
     window.addEventListener('pointermove', onMove, { passive: true })
     document.addEventListener('pointerleave', onLeave)
     window.addEventListener('blur', onLeave)
+    window.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('click', onClick)
 
     return () => {
       window.removeEventListener('pointermove', onMove)
       document.removeEventListener('pointerleave', onLeave)
       window.removeEventListener('blur', onLeave)
+      window.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('click', onClick)
       pointerState.presence = 0
       pointerState.vx = 0
       pointerState.vy = 0
+      pointerState.spaceClick = false
+      pointerState.overShell = false
       pointerState.enabled = false
     }
   }, [active])

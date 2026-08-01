@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Reveal } from './Reveal'
 import { StatusChip } from './StatusChip'
 import { TypingLine } from './TypingLine'
@@ -5,11 +6,28 @@ import { BrandMark, BrandStamp } from './BrandMark'
 import { ArrowIcon, SERVICE_ICONS } from './icons'
 import { SectionNav } from './SectionNav'
 import { useWarpHide } from './useWarpHide'
+import { GameHud } from './GameHud'
+import { Achievements } from './Achievements'
 import { projects, services } from '../content/projects'
 import { WORK_BEATS, type BeatId } from '../lib/beats'
+import {
+  canEnterGame,
+  enterGame,
+  getLastGameScore,
+  subscribeGameMode,
+} from '../lib/gameMode'
+import { pointerState } from '../lib/pointer'
+
+const LOGO_TRIPLE_CLICK_MS = 1000
+const LOGO_TRIPLE_CLICKS = 3
 
 function Header() {
   const hidden = useWarpHide()
+  const [lastScore, setLastScore] = useState(0)
+
+  useEffect(() => {
+    return subscribeGameMode(() => setLastScore(getLastGameScore()))
+  }, [])
 
   return (
     <div
@@ -34,12 +52,19 @@ function Header() {
             Center Infinity
           </span>
         </a>
-        <a
-          href="#contact"
-          className="label transition-colors duration-300 hover:!text-rim"
-        >
-          Start a project
-        </a>
+        <div className="relative z-20 flex flex-col items-end gap-1">
+          <a
+            href="#contact"
+            className="label transition-colors duration-300 hover:!text-rim"
+          >
+            Start a project
+          </a>
+          {lastScore > 0 ? (
+            <span className="font-mono text-[0.625rem] tracking-[0.18em] text-regolith/70">
+              SCORE {String(lastScore).padStart(4, '0')}
+            </span>
+          ) : null}
+        </div>
       </header>
     </div>
   )
@@ -50,6 +75,25 @@ function Header() {
  * Effects wait for a real display face; typing line stays quiet underneath.
  */
 function Hero() {
+  const clicksRef = useRef<{ times: number[] }>({ times: [] })
+
+  // Not a <button> — keeps storm space-clicks and avoids focus rings.
+  // Hero is select-none; pointer layer clears selection on empty-space mousedown.
+  const onMarkClick = () => {
+    const now = performance.now()
+    const times = clicksRef.current.times.filter(
+      (t) => now - t < LOGO_TRIPLE_CLICK_MS,
+    )
+    times.push(now)
+    clicksRef.current.times = times
+    if (times.length < LOGO_TRIPLE_CLICKS) return
+    clicksRef.current.times = []
+    if (!canEnterGame()) return
+    // Mark isn't a button, so the click also latches storm spaceClick — clear it.
+    pointerState.spaceClick = false
+    enterGame('space-flyer')
+  }
+
   return (
     <section
       id="top"
@@ -58,17 +102,23 @@ function Hero() {
       // the middle. On portrait the cluster itself is lifted into the upper half
       // (PORTRAIT_LIFT_FRAMES), so the mark has to follow it up rather than sit
       // dead centre — otherwise it lands under the moons.
-      className="relative flex min-h-screen items-start justify-center px-6 pt-[38vh] md:items-center md:pt-0"
+      className="relative flex min-h-screen select-none items-start justify-center px-6 pt-[38vh] md:items-center md:pt-0"
     >
-      <Reveal>
+      {/* Held at --hero-copy:0 until planets finish arriving, then fades in. */}
+      <div className="hero-copy">
         <div className="flex flex-col items-center text-center">
-          <BrandMark size="lg" className="mb-5 opacity-95" decorative={false} />
-          <h1 className="relative z-[11] text-[clamp(0.95rem,2.2vw,1.35rem)] font-medium tracking-[0.18em] text-rim [text-shadow:0_0_24px_rgba(14,16,22,0.9),0_1px_2px_rgba(0,0,0,0.8)]">
+          <div
+            className="relative z-[12] mb-5 cursor-pointer"
+            onClick={onMarkClick}
+          >
+            <BrandMark size="lg" className="opacity-95" decorative={false} />
+          </div>
+          <h1 className="hero-wordmark relative z-[11] text-[clamp(0.95rem,2.2vw,1.35rem)] text-rim [text-shadow:0_0_24px_rgba(14,16,22,0.9),0_1px_2px_rgba(0,0,0,0.8)]">
             CENTER INFINITY
           </h1>
           <TypingLine />
         </div>
-      </Reveal>
+      </div>
 
       <div className="hero-cue pointer-events-none absolute inset-x-0 bottom-10 flex justify-center">
         <span className="label text-[0.625rem] text-regolith/50">Scroll</span>
@@ -333,8 +383,10 @@ export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
             <Header />
           </div>
           <SectionNav />
+          <Achievements />
         </div>
       ) : null}
+      <GameHud />
       {/* Copy sits under rocks/meteors so debris can pass in front of the type. */}
       <div className="warp-veil relative z-10">
         <main className="relative z-10">

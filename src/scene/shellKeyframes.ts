@@ -151,16 +151,16 @@ function kf(
  * beat is a deliberately distinct tableau, and because beats are pinned to
  * sections each one lands exactly when its section is centred.
  *
- * Shells are ordered back-to-front by `z` at the hero beat so the nested
- * crescents stay visible under opaque blending: B sits in front of A, D in
- * front of C.
+ * Hero depth is staged far→near A → C → B → D so the 2D logo silhouette
+ * stays identical (`fx`/`fy`/`diameter` unchanged, `referenceZ` = hero `z`)
+ * while world spheres keep flyable gaps between every pair.
  */
 export const SHELL_MOTIONS: ShellMotion[] = [
   {
     id: 'A',
     surfaceKind: 'jupiter',
     diameter: 0.70,
-    referenceZ: -4,
+    referenceZ: -21,
     normalScale: 0.52,
     detailScale: 0.72,
     tint: '#7e8798',
@@ -170,7 +170,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     spinAxis: [0.12, 1, 0.05],
     spinRate: -0.016,
     keyframes: [
-      kf('hero', 0.5, 0.42, -4, above(-0.12, -0.65), 0.76),
+      kf('hero', 0.5, 0.42, -21, above(-0.12, -0.65), 0.76),
       kf('services', 0.85, 0.34, -12, above(-0.55, -0.7), 0.78),
       kf('work-1', 0.82, 0.68, -14, above(-0.7, -0.65), 0.8),
       kf('work-2', 0.2, 0.72, -16, below(-0.8, -0.6), 0.7),
@@ -188,7 +188,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     id: 'B',
     surfaceKind: 'moon',
     diameter: 0.38,
-    referenceZ: 5.5,
+    referenceZ: 10,
     normalScale: 0.58,
     detailScale: 0.62,
     tint: '#8e96a6',
@@ -198,7 +198,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     spinAxis: [0.15, 0.75, 0.65],
     spinRate: -0.038,
     keyframes: [
-      kf('hero', 0.5, 0.31, 5.5, above(0.05, -0.6), 0.88),
+      kf('hero', 0.5, 0.31, 10, above(0.05, -0.6), 0.88),
       kf('services', 0.86, 0.22, 4, above(0.75, -0.6), 0.84),
       kf('work-1', 0.66, 0.3, 7, above(0.5, -0.65), 0.9),
       kf('work-2', 0.84, 0.24, 8, above(0.85, -0.6), 0.94),
@@ -213,7 +213,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     id: 'C',
     surfaceKind: 'venus',
     diameter: 0.48,
-    referenceZ: -3.2,
+    referenceZ: 0,
     normalScale: 0.54,
     detailScale: 0.66,
     tint: '#828a9a',
@@ -223,7 +223,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     spinAxis: [0.85, 0.15, 0.1],
     spinRate: 0.026,
     keyframes: [
-      kf('hero', 0.51, 0.62, -3.2, below(0.08, -0.68), 0.75),
+      kf('hero', 0.51, 0.62, 0, below(0.08, -0.68), 0.75),
       kf('services', 0.26, 0.82, -9, below(-0.75, -0.65), 0.78),
       kf('work-1', 0.76, 0.6, -4.5, below(0.5, -0.6), 0.82),
       kf('work-2', 0.72, 0.78, -8, below(0.65, -0.6), 0.84),
@@ -238,7 +238,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     id: 'D',
     surfaceKind: 'ice',
     diameter: 0.19,
-    referenceZ: 4,
+    referenceZ: 16,
     normalScale: 0.56,
     detailScale: 0.58,
     tint: '#9aa4b4',
@@ -248,7 +248,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     spinAxis: [0.45, 0.45, 0.75],
     spinRate: 0.052,
     keyframes: [
-      kf('hero', 0.5, 0.65, 4, below(-0.12, -0.58), 0.9),
+      kf('hero', 0.5, 0.65, 16, below(-0.12, -0.58), 0.9),
       kf('services', 0.8, 0.72, 5, below(0.7, -0.6), 0.86),
       kf('work-1', 0.9, 0.18, 4.5, above(0.85, -0.6), 0.92),
       kf('work-2', 0.28, 0.24, 6, above(-0.6, -0.6), 0.9),

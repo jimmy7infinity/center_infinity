@@ -4,6 +4,8 @@ import * as THREE from 'three'
 import { scrollState, getIntroArrive, hasEntered } from '../lib/scroll'
 import { publishCamera } from '../lib/cameraBridge'
 import { pointerState } from '../lib/pointer'
+import { unlockAchievement } from '../lib/achievements'
+import { isGameActive } from '../lib/gameMode'
 import { createPlanetSurface } from './lunarSurface'
 import {
   createShellMaterial,
@@ -46,17 +48,23 @@ const INTRO_FAR_TARGET = new THREE.Vector3(0, 0, -2)
  */
 const CURSOR_LIFT = 1.02
 /**
- * Storm patch radius as a share of the shell radius.
- * √0.20 ≈ 0.447 → ~20% of the visible disk area (πr² / πR²).
+ * Storm coverage as geodesic angle from the eye (radians on the sphere).
+ * Starts at ~0 and ends near (2/3)·(π/3) ≈ 17% of the planet surface.
  */
-const CURSOR_RANGE = Math.sqrt(0.2)
+const STORM_ANGLE_START = 0.0
+const STORM_ANGLE_END = (Math.PI / 3) * (2 / 3)
 const CURSOR_DAMP = 10
 const CURSOR_GAIN = 0.4
-/** How long the storm takes to go from first streaks to full body. */
-const PRESENCE_SECONDS = 1.75
-/** Storm angular rate (rad/s) — full speed as soon as the cell exists. */
-const STORM_SPIN_RATE = 0.85
-const STORM_DAMP = 6
+/** Seconds from first contact to max coverage. */
+const STORM_GROW_SECONDS = 12
+/** Retract over empty space when nothing else is growing — slower than grow. */
+const STORM_SHRINK_SLOW_SECONDS = 18
+/** Retract when another planet's storm is growing — clear the old cell quickly. */
+const STORM_SHRINK_FAST_SECONDS = 3.6
+/** Storm angular rate (rad/s) — slow revolution of the cloud field. */
+const STORM_SPIN_RATE = 0.14
+/** Cursor lamp damp only — storm strength stays binary so growth isn't a fade. */
+const CURSOR_STRENGTH_DAMP = 6
 
 /** Harmonious cool→warm→cool cycle — never loud, never rainbow. */
 const CURSOR_HUES = [
@@ -110,6 +118,20 @@ function registerShellProbe(
 
 function unregisterShellProbe(id: string) {
   shellProbes.delete(id)
+}
+
+/** Live planet centres/radii for minigame collision (read-only each frame). */
+export function forEachShellProbe(
+  callback: (probe: {
+    id: string
+    centre: THREE.Vector3
+    radius: number
+    opacity: number
+  }) => void,
+) {
+  for (const probe of shellProbes.values()) {
+    callback(probe)
+  }
 }
 
 /**
@@ -223,6 +245,12 @@ function Shell({
   const stormAlive = useRef(false)
   const stormSpinSign = useRef(1)
   const stormSizeMul = useRef(1)
+  /** Stacked click intensity 0..1 — bolt count + hold length. */
+  const lightningCharge = useRef(0)
+  /** Seconds since the current strike began (draw → hold → fade). */
+  const lightningAge = useRef(0)
+  const lightningActive = useRef(false)
+  const lightningSeed = useRef(0)
   const surface = useMemo(
     () => createPlanetSurface(motion.surfaceKind),
     [motion.surfaceKind],
@@ -371,9 +399,11 @@ function Shell({
     // Occlusion uses last-frame probes for siblings; this shell's probe is fresh.
     // Resolve once here — cheap, and keeps Shell self-contained.
     frontShellId = resolveFrontShell(state.camera)
+    pointerState.overShell = frontShellId !== null
 
     // Only while the ray actually intersects this shell.
     const wantsCursor =
+      !isGameActive() &&
       pointerState.enabled &&
       jumpFade > 0.01 &&
       frontShellId === motion.id
@@ -396,18 +426,22 @@ function Shell({
         .multiplyScalar(radius)
         .add(group.position)
 
-      // New contact → roll a fresh storm (seed, spin direction, size, phase).
+      // New contact → roll a fresh storm (seed, spin direction, phase).
       if (!stormAlive.current) {
         stormAlive.current = true
         uniforms.uStormSeed.value = Math.random() * 1000
         stormSpinSign.current = Math.random() < 0.5 ? -1 : 1
-        stormSizeMul.current = 0.82 + Math.random() * 0.36
+        uniforms.uStormSpinSign.value = stormSpinSign.current
+        stormSizeMul.current = 0.94 + Math.random() * 0.12
+        // Phase only increases; direction lives in uStormSpinSign so the
+        // spiral never mirrors when the angle would have crossed 0.
         stormAngle.current = Math.random() * Math.PI * 2
         uniforms.uStormCenter.value.copy(surfaceHitPos.current)
       }
 
-      // Lock the eye harder once present so the swirl doesn't wobble.
-      const follow = presence.current > 0.5 ? 4 : CURSOR_DAMP
+      // Gentler eye follow early on — fast chase made the UV frame swim/pop.
+      const follow =
+        presence.current < 0.2 ? 2.5 : presence.current > 0.5 ? 4 : CURSOR_DAMP
       uniforms.uStormCenter.value.lerp(
         surfaceHitPos.current,
         1 - Math.exp(-follow * delta),
@@ -416,24 +450,94 @@ function Shell({
         cursorTargetPos.current,
         1 - Math.exp(-CURSOR_DAMP * delta),
       )
-      presence.current = Math.min(1, presence.current + delta / PRESENCE_SECONDS)
-    } else {
-      presence.current = Math.max(0, presence.current - delta / 0.55)
+      presence.current = Math.min(
+        1,
+        presence.current + delta / STORM_GROW_SECONDS,
+      )
+      if (presence.current >= 1) unlockAchievement('storm_bringer')
+    } else if (presence.current > 0) {
+      // Pointer on another planet → that storm is growing, clear this one fast.
+      // Pointer over empty space → linger and shrink slowly.
+      const otherPlanetGrowing =
+        frontShellId !== null && frontShellId !== motion.id
+      const shrinkSeconds = otherPlanetGrowing
+        ? STORM_SHRINK_FAST_SECONDS
+        : STORM_SHRINK_SLOW_SECONDS
+      presence.current = Math.max(0, presence.current - delta / shrinkSeconds)
       if (presence.current <= 0.001) {
         stormAlive.current = false
         presence.current = 0
+        lightningCharge.current = 0
+        lightningActive.current = false
+        lightningAge.current = 0
       }
     }
 
-    // Linear grow clock — shader owns the streak→fill curve (smoothstep here
-    // would front-load the fill and kill the tendril phase).
-    uniforms.uCursorRange.value = radius * CURSOR_RANGE * stormSizeMul.current
-    uniforms.uStormGrow.value = presence.current
+    // Click storm → one leader from the eye. Charge only brightens / holds
+    // (and rarely unlocks a short mid-stroke fork) — never extra spokes.
+    // Gate matches the shader (`step(0.12, grow)`) so we never "strike"
+    // (or award zeus) when the bolt would be invisible.
+    if (pointerState.spaceClick && frontShellId === motion.id) {
+      pointerState.spaceClick = false
+      if (presence.current > 0.12) {
+        lightningCharge.current = Math.min(1, lightningCharge.current + 0.08)
+        lightningSeed.current = Math.random() * 1000
+        lightningAge.current = 0
+        lightningActive.current = true
+        unlockAchievement('zeus')
+      }
+    }
+
+    let lightningOpacity = 0
+    let lightningDraw = 0
+    if (lightningActive.current) {
+      lightningAge.current += delta
+      const charge = lightningCharge.current
+      // Quick tip race — still readable as growth, not a still frame.
+      const drawSec = 0.08 + charge * 0.05
+      const holdSec = 0.05 + charge * 0.85
+      const fadeSec = 0.1 + charge * 0.35
+      const t = lightningAge.current
+      if (t < drawSec) {
+        lightningDraw = t / drawSec
+        lightningOpacity = 1
+      } else if (t < drawSec + holdSec) {
+        lightningDraw = 1
+        lightningOpacity = 1
+      } else if (t < drawSec + holdSec + fadeSec) {
+        lightningDraw = 1
+        const u = (t - drawSec - holdSec) / fadeSec
+        lightningOpacity = 1 - u
+      } else {
+        lightningActive.current = false
+        lightningAge.current = 0
+        lightningDraw = 0
+        lightningOpacity = 0
+      }
+    } else if (lightningCharge.current > 0) {
+      lightningCharge.current = Math.max(
+        0,
+        lightningCharge.current - delta / (rawStrength > 0 ? 10 : 6),
+      )
+    }
+
+    // Ease-in coverage: first moments stay a near-invisible speck; most of the
+    // area arrives in the back half of the grow. Linear presence felt already
+    // "sized" within the first second.
+    const growT = presence.current
+    const coverageT = growT * growT * growT // cubic ease-in
+    uniforms.uCursorRange.value =
+      THREE.MathUtils.lerp(
+        STORM_ANGLE_START,
+        STORM_ANGLE_END,
+        coverageT,
+      ) * stormSizeMul.current
+    uniforms.uStormGrow.value = growT
 
     uniforms.uCursorStrength.value = THREE.MathUtils.damp(
       uniforms.uCursorStrength.value,
       rawStrength * Math.min(1, presence.current * 2),
-      STORM_DAMP,
+      CURSOR_STRENGTH_DAMP,
       delta,
     )
 
@@ -447,19 +551,21 @@ function Shell({
     uniforms.uWarmReveal.value.copy(WARM_REVEAL)
 
     uniforms.uTime.value = state.clock.elapsedTime
-    // Storm character is immediate — only the front spreads. Spin at full rate.
-    const active = rawStrength > 0 && presence.current > 0.01 ? 1 : 0
-    uniforms.uDwell.value = active
-    if (active) {
-      stormAngle.current += STORM_SPIN_RATE * stormSpinSign.current * delta
+    // Keep spinning for the whole life of the cell — including shrink after
+    // the pointer leaves — so it doesn't freeze mid-swirl.
+    const spinning = presence.current > 0.001
+    uniforms.uDwell.value = spinning ? 1 : 0
+    if (spinning) {
+      // Always accumulate forward; shader applies ±uStormSpinSign.
+      stormAngle.current += STORM_SPIN_RATE * delta
     }
     uniforms.uStormAngle.value = stormAngle.current
-    uniforms.uStormStrength.value = THREE.MathUtils.damp(
-      uniforms.uStormStrength.value,
-      active,
-      STORM_DAMP,
-      delta,
-    )
+    uniforms.uStormSpinSign.value = stormSpinSign.current
+    uniforms.uStormStrength.value = presence.current > 0.001 ? 1 : 0
+    uniforms.uLightning.value = lightningOpacity
+    uniforms.uLightningDraw.value = lightningDraw
+    uniforms.uLightningPower.value = lightningCharge.current
+    uniforms.uLightningSeed.value = lightningSeed.current
 
     const spinGroup = spinRef.current
     if (spinGroup && motion.spinRate !== 0) {
@@ -506,6 +612,9 @@ function CameraRig() {
   const lookTarget = useMemo(() => new THREE.Vector3(0, 0, -2), [])
 
   useFrame((state, delta) => {
+    // Flyer owns the lens after boot; it starts from this pose so the cut is seamless.
+    if (isGameActive()) return
+
     const camera = state.camera
     sampleCameraKeyframe(scrollState.beat, pose)
     sampleCameraKeyframe(0, heroPose)

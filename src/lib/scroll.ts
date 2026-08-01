@@ -41,12 +41,18 @@ let introWarp = 0
 let introStarted = false
 let introPhase: 'idle' | 'hold' | 'ease' | 'done' = 'idle'
 let introElapsed = 0
+/** 0..1 — hero brand copy fades in after planets finish arriving. */
+let heroCopy = 0
+let heroCopyElapsed = 0
 let loopCooldown = 0
 let veilEnabled = false
 let entered = false
 
 const INTRO_HOLD_MS = 1800
 const INTRO_EASE_MS = 1400
+/** Pause after planets settle, then ease the hero mark/type in. */
+const HERO_COPY_DELAY_MS = 550
+const HERO_COPY_FADE_MS = 1100
 
 /**
  * Hard section pager — one intentional gesture = exactly one beat.
@@ -68,6 +74,8 @@ let gestureLocked = false
 let pageToken = 0
 let unlockTimer = 0
 let touchOriginY: number | null = null
+/** When true, wheel/touch/keys never advance sections (minigame owns input). */
+let pagingPaused = false
 const sectionListeners = new Set<(index: number) => void>()
 
 function easeAssist(t: number) {
@@ -135,6 +143,25 @@ function triggerLoop(lenis: Lenis) {
   }
 }
 
+/** Pause guided section paging while a minigame owns the viewport. */
+export function setSectionPagingPaused(paused: boolean) {
+  pagingPaused = paused
+  if (paused) {
+    pageToken += 1
+    paging = false
+    gestureLocked = false
+    window.clearTimeout(unlockTimer)
+    touchOriginY = null
+  }
+}
+
+/** Public loop/warp flash back to the hero (same path as the runway end). */
+export function triggerSiteLoop() {
+  const lenis = lenisInstance
+  if (!lenis) return
+  triggerLoop(lenis)
+}
+
 function finishPage(token: number) {
   if (token !== pageToken) return
   paging = false
@@ -199,7 +226,7 @@ function onWheel(event: WheelEvent) {
   // Always kill native / Lenis free-scroll so the page never drifts off-beat.
   event.preventDefault()
   event.stopImmediatePropagation()
-  if (!entered || paging || gestureLocked) return
+  if (!entered || pagingPaused || paging || gestureLocked) return
   if (Math.abs(event.deltaY) < WHEEL_THRESHOLD) return
   pageBy(event.deltaY)
 }
@@ -221,14 +248,14 @@ function onTouchEnd(event: TouchEvent) {
   const endY = event.changedTouches[0]?.clientY
   const startY = touchOriginY
   touchOriginY = null
-  if (endY === undefined || paging || gestureLocked) return
+  if (endY === undefined || pagingPaused || paging || gestureLocked) return
   const dy = startY - endY
   if (Math.abs(dy) < TOUCH_THRESHOLD_PX) return
   pageBy(dy)
 }
 
 function onKeyDown(event: KeyboardEvent) {
-  if (!entered || paging || gestureLocked) return
+  if (!entered || pagingPaused || paging || gestureLocked) return
   const el = event.target
   if (el instanceof HTMLElement) {
     const tag = el.tagName
@@ -407,6 +434,25 @@ function tickIntroWarp(deltaMs: number) {
   introWarp = 1 - smoothstep(0, 1, u)
 }
 
+/** Hero brand/type — held until the intro lands, then delayed fade-in. */
+function tickHeroCopy(deltaMs: number) {
+  if (!entered || introPhase !== 'done') {
+    heroCopy = 0
+    heroCopyElapsed = 0
+    document.documentElement.style.setProperty('--hero-copy', '0')
+    return
+  }
+
+  heroCopyElapsed += deltaMs
+  if (heroCopyElapsed < HERO_COPY_DELAY_MS) {
+    heroCopy = 0
+  } else {
+    const u = (heroCopyElapsed - HERO_COPY_DELAY_MS) / HERO_COPY_FADE_MS
+    heroCopy = smoothstep(0, 1, Math.min(1, u))
+  }
+  document.documentElement.style.setProperty('--hero-copy', heroCopy.toFixed(3))
+}
+
 /** Full-screen warp streaks after the user enters; no-op after the first call. */
 export function startIntroWarp() {
   if (introStarted) return
@@ -449,11 +495,19 @@ export function isIntroWarpActive() {
   return introPhase === 'hold' || introPhase === 'ease'
 }
 
+/** 0..1 reveal of the hero logo / “we build” line after the scene settles. */
+export function getHeroCopy() {
+  return heroCopy
+}
+
 function resetIntroWarp() {
   introWarp = 0
   introStarted = false
   introPhase = 'idle'
   introElapsed = 0
+  heroCopy = 0
+  heroCopyElapsed = 0
+  document.documentElement.style.setProperty('--hero-copy', '0')
 }
 
 /**
@@ -482,6 +536,8 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
     if (!smooth) {
       entered = true
       document.documentElement.style.setProperty('--warp-veil', '0')
+      document.documentElement.style.setProperty('--hero-copy', '1')
+      heroCopy = 1
       const onScroll = () => applyScroll(window.scrollY, 0)
       onScroll()
       window.addEventListener('scroll', onScroll, { passive: true })
@@ -555,6 +611,7 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       if (loopCooldown > 0) loopCooldown = Math.max(0, loopCooldown - delta)
       if (flash > 0) flash = Math.max(0, flash - delta / LOOP_FLASH_SECONDS)
       tickIntroWarp(delta * 1000)
+      tickHeroCopy(delta * 1000)
       refreshWarp()
 
       frame = requestAnimationFrame(loop)
@@ -583,7 +640,10 @@ export function useSmoothScroll(smooth: boolean, ready = true) {
       document.body.style.touchAction = prevTouchAction
       root.style.overscrollBehaviorY = prevOverscroll
       veilEnabled = false
+      pagingPaused = false
       document.documentElement.style.setProperty('--warp-veil', '0')
+      document.documentElement.style.setProperty('--game-veil', '0')
+      document.documentElement.style.setProperty('--hero-copy', '0')
     }
   }, [smooth, ready])
 }

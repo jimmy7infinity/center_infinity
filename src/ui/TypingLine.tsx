@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getHeroCopy } from '../lib/scroll'
 
 const PHRASES = [
   'websites',
@@ -20,6 +21,7 @@ const GAP_MS = 320
 export function TypingLine() {
   const [text, setText] = useState<string>(PHRASES[0])
   const [reduced, setReduced] = useState(false)
+  const [copyReady, setCopyReady] = useState(false)
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -29,11 +31,27 @@ export function TypingLine() {
     return () => media.removeEventListener('change', sync)
   }, [])
 
+  // Don't start the typewriter until the delayed hero copy fade has begun —
+  // otherwise the cycle is already mid-phrase when the line appears.
+  useEffect(() => {
+    let frame = 0
+    const loop = () => {
+      if (getHeroCopy() > 0.08) {
+        setCopyReady(true)
+        return
+      }
+      frame = requestAnimationFrame(loop)
+    }
+    frame = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
   useEffect(() => {
     if (reduced) {
       setText(PHRASES[0])
       return
     }
+    if (!copyReady) return
 
     let phraseIndex = 0
     let charIndex = PHRASES[0].length
@@ -65,7 +83,7 @@ export function TypingLine() {
 
     timer = window.setTimeout(tick, HOLD_MS)
     return () => window.clearTimeout(timer)
-  }, [reduced])
+  }, [reduced, copyReady])
 
   return (
     <p

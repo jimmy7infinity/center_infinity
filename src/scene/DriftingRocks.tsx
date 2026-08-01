@@ -117,7 +117,8 @@ function rockRadius(direction: THREE.Vector3, lobes: Lobe[]): number {
   return radius
 }
 
-function createRockGeometry(seed: number): THREE.BufferGeometry {
+/** Irregular boulder mesh — shared with the flyer minigame orbit rocks. */
+export function createRockGeometry(seed: number): THREE.BufferGeometry {
   const rng = seededRandom(seed)
   // Subdivided enough to resolve the craggy lobes below. These now pass close
   // to camera, where a smooth boulder reads as a paper shard.
@@ -265,13 +266,13 @@ export function DriftingRocks() {
   const material = useMemo(
     () =>
       createShellMaterial({
+        // Cool blue-grey debris — dark enough to sit in front of lit crescents
+        // without going pure black into the void.
         tint: '#7e8798',
         lightDir: SUN_DIR,
         lightColor: '#dce6f5',
-        // Deliberately dimmer than the shells' effective 1.4–1.8. Rocks now
-        // cross in front of lit crescents, and one that out-shines the moon
-        // behind it reads as a pasted-on shard; darker, it reads as a
-        // silhouette, which is what conveys "in front".
+        // Dimmer than the shells so rocks read as silhouettes in front, not
+        // pasted-on shards that outshine the moons behind them.
         intensity: 1.05,
         // Wider than the shells': on something this small a hard terminator
         // collapses to a single bright pixel edge.

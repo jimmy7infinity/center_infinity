@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import {
   Bloom,
@@ -13,8 +13,10 @@ import { Shells } from './Shells'
 import { DriftingRocks } from './DriftingRocks'
 import { ShootingStars } from './ShootingStars'
 import { Starfield } from './Starfield'
+import { SpaceFlyer } from '../game/spaceFlyer'
 import { dprFor, type QualityTier } from '../lib/quality'
 import { cameraBridge } from '../lib/cameraBridge'
+import { isGameActive, subscribeGameMode } from '../lib/gameMode'
 
 const VOID = '#0e1016'
 
@@ -96,6 +98,12 @@ function ReadySignal({ onReady }: { onReady?: () => void }) {
   return null
 }
 
+function useGameMounted() {
+  const [active, setActive] = useState(false)
+  useEffect(() => subscribeGameMode(() => setActive(isGameActive())), [])
+  return active
+}
+
 function BackgroundScene({
   tier,
   onReady,
@@ -103,6 +111,8 @@ function BackgroundScene({
   tier: QualityTier
   onReady?: () => void
 }) {
+  const gameOn = useGameMounted()
+
   return (
     <Canvas
       className="!fixed inset-0 z-0"
@@ -117,6 +127,7 @@ function BackgroundScene({
       <color attach="background" args={[VOID]} />
       <ReadySignal onReady={onReady} />
       <Shells />
+      {gameOn ? <SpaceFlyer /> : null}
       <Starfield count={tier === 'high' ? 1100 : 550} />
       <Effects tier={tier} />
     </Canvas>
@@ -124,6 +135,8 @@ function BackgroundScene({
 }
 
 function ForegroundDebris({ tier }: { tier: QualityTier }) {
+  const gameOn = useGameMounted()
+
   return (
     <Canvas
       className="pointer-events-none !fixed inset-0 z-40"
@@ -135,14 +148,20 @@ function ForegroundDebris({ tier }: { tier: QualityTier }) {
         powerPreference: 'high-performance',
       }}
       camera={{ position: [0, 0, 27], fov: 42, near: 0.1, far: 200 }}
-      style={{ background: 'transparent' }}
+      // R3F sets pointer-events:auto on the root; className alone loses the fight.
+      style={{ background: 'transparent', pointerEvents: 'none' }}
       onCreated={({ gl }) => {
         gl.setClearColor(0x000000, 0)
       }}
     >
       <FollowCamera />
-      <DriftingRocks />
-      <ShootingStars crossText />
+      {/* Rocks/meteors sit above the bg canvas and would bury the ship. */}
+      {gameOn ? null : (
+        <>
+          <DriftingRocks />
+          <ShootingStars crossText />
+        </>
+      )}
     </Canvas>
   )
 }

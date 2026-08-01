@@ -6,6 +6,10 @@
      the page read as decorative rather than as a studio that ships software. */
   --font-sans: 'Switzer', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+  /* Wide geometric display — hero wordmark. */
+  --font-display: 'Science Gothic', 'Switzer', ui-sans-serif, system-ui, sans-serif;
+  /* Smooth cabinet / coin-op display — GAME OVER stingers only. */
+  --font-arcade: 'Audiowide', ui-sans-serif, system-ui, sans-serif;
 
   /* Cold blue-void field. Text is cool silver, not neutral grey. */
   --color-void: #0e1016;
@@ -25,6 +29,10 @@
 @layer base {
   html {
     --warp-veil: 1;
+    /* Minigame fade — independent of intro/runway/loop warp. */
+    --game-veil: 0;
+    /* Hero logo / we-build — held until after planets finish arriving. */
+    --hero-copy: 0;
     background-color: var(--color-void);
     color-scheme: dark;
   }
@@ -58,7 +66,63 @@
 
 /* Driven per-frame from the scroll loop; see refreshWarp(). */
 @utility warp-veil {
-  opacity: calc(1 - var(--warp-veil, 0));
+  opacity: calc((1 - var(--warp-veil, 0)) * (1 - var(--game-veil, 0)));
+}
+
+/* Minigame: copy stays mounted for anchors but must not steal clicks. */
+html.game-active .warp-veil {
+  pointer-events: none;
+}
+
+/* Flight reticle replaces the system cursor. */
+html.game-active,
+html.game-active * {
+  cursor: none !important;
+}
+
+/* Classic arcade GAME OVER — mono, wide tracking, hard blink. */
+@keyframes game-over-blink {
+  0%,
+  48% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.2;
+  }
+}
+
+@utility game-over-title {
+  font-family: var(--font-arcade);
+  font-size: clamp(1.75rem, 6vw, 3.75rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-rim);
+  animation: game-over-blink 1.05s steps(1, end) infinite;
+}
+
+@utility game-over-score {
+  font-family: var(--font-arcade);
+  font-size: clamp(0.7rem, 1.8vw, 0.95rem);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-rim) 70%, transparent);
+}
+
+/* Hero brand cluster — fades in last, after the scene settles. */
+@utility hero-copy {
+  opacity: var(--hero-copy, 0);
+}
+
+@utility hero-wordmark {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  text-transform: uppercase;
 }
 
 /**
@@ -69,9 +133,9 @@
   opacity: var(--past-hero, 0);
 }
 
-/* The inverse: the scroll cue belongs to the hero and leaves with it. */
+/* Scroll cue: waits for hero copy, then leaves with the hero beat. */
 @utility hero-cue {
-  opacity: calc(1 - var(--past-hero, 0));
+  opacity: calc((1 - var(--past-hero, 0)) * var(--hero-copy, 0));
 }
 
 /**
@@ -151,6 +215,102 @@
   animation-delay: 0.36s;
 }
 
+/* Easter-egg achievements — top-left icon tray with drawer announce/tooltip. */
+.achievement-chip {
+  list-style: none;
+}
+
+.achievement-chip__hit {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-glow);
+  cursor: default;
+}
+
+.achievement-chip__icon {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
+  align-self: stretch;
+  border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
+  background: color-mix(in oklab, var(--color-void) 72%, transparent);
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.achievement-chip__drawer {
+  display: grid;
+  grid-template-columns: 0fr;
+  overflow: hidden;
+  transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.achievement-chip__panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
+  border-left: 0;
+  background: color-mix(in oklab, var(--color-void) 72%, transparent);
+  opacity: 0;
+  transform: translateX(-0.35rem);
+  transition:
+    opacity 0.22s ease,
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.achievement-chip__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  color: var(--color-regolith);
+}
+
+.achievement-chip__name {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  color: var(--color-rim);
+}
+
+.achievement-chip__hit:hover .achievement-chip__icon,
+.achievement-chip__hit:focus-visible .achievement-chip__icon,
+.achievement-chip.is-announcing .achievement-chip__icon {
+  border-color: color-mix(in oklab, var(--color-glow) 45%, transparent);
+  color: var(--color-rim);
+}
+
+.achievement-chip__hit:hover .achievement-chip__drawer,
+.achievement-chip__hit:focus-visible .achievement-chip__drawer,
+.achievement-chip.is-announcing .achievement-chip__drawer {
+  grid-template-columns: 1fr;
+}
+
+.achievement-chip__hit:hover .achievement-chip__panel,
+.achievement-chip__hit:focus-visible .achievement-chip__panel,
+.achievement-chip.is-announcing .achievement-chip__panel {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.achievement-chip__hit:focus-visible {
+  outline: 1px solid color-mix(in oklab, var(--color-rim) 40%, transparent);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -162,5 +322,10 @@
   .hero-caret {
     animation: none;
     opacity: 0;
+  }
+
+  .achievement-chip__drawer,
+  .achievement-chip__panel {
+    transition: none;
   }
 }

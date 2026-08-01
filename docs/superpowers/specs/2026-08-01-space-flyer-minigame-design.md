@@ -25,14 +25,14 @@ Let visitors discover a short flying easter egg by triple-clicking the **hero** 
 | Planets | Soft bounce (no clip-through) |
 | Architecture | Thin game-mode shell + one flyer game |
 | Exit | Reuse existing loop/warp → hero (not reload, not full intro replay) |
-| Trigger | Hero logo only (not header) |
+| Trigger | Header logo only (not hero mark) |
 
 ## Architecture
 
 Game shell owns lifecycle; the flyer is the first plugged-in game.
 
 ```
-Hero logo ×3 within 1s
+Header logo ×3 within 1s
         ↓
 gameMode.enter('space-flyer')
         ↓
@@ -56,7 +56,7 @@ Matches existing patterns: mutable module singletons (`scrollState`, `pointerSta
 
 ### Integration seams
 
-- **Trigger:** Hero brand mark in `Overlay.tsx` — click counter (1s window); on third click `preventDefault` so `#top` / section jump does not fire; ignore `pointerState.spaceClick` lightning for that interaction.
+- **Trigger:** Header brand link in `Overlay.tsx` — click counter (1s window); on third click `preventDefault` + `stopPropagation` so `#top` / section jump does not fire. Hero mark stays non-interactive so storm/lightning space-clicks keep working.
 - **UI hide:** Dedicated `--game-veil` (same consumers as warp veil / chrome hide) so game fade does not fight intro/loop `--warp-veil` state. Extend `useWarpHide` (or equivalent) to respect game active.
 - **Scroll:** Pause Lenis and wheel/touch/key section paging while active.
 - **Camera:** Detach beat-driven `CameraRig`; chase cam drives camera and `publishCamera` for foreground debris sync.
@@ -117,8 +117,8 @@ Only planets, stars, ship, timer, and the brief control hint. No nav, copy, or s
 
 ## Edge cases
 
-- **Header logo:** Unchanged — still navigates `#top` / home. Not an easter-egg trigger.
-- **Hero logo:** Trigger only when the hero brand is visible/interactive; inert while game veil is up.
+- **Header logo:** Single click still navigates `#top`; triple-click within 1s starts the flyer.
+- **Hero logo:** Non-interactive mark again — storm space-clicks work through the hero cluster.
 - **Static tier / scene not ready:** Triple-click does nothing special.
 - **Second run:** Supported after a clean exit.
 - **No Esc exit in v1.**
