@@ -9,7 +9,14 @@
  * Adding a section means adding an id here, a `data-beat` on the markup, and a
  * keyframe at that index in every table.
  */
-const WORK = ['work-1', 'work-2', 'work-3', 'work-4', 'work-5'] as const
+const WORK = [
+  'work-1',
+  'work-2',
+  'work-3',
+  'work-4',
+  'work-5',
+  'work-6',
+] as const
 
 export const BEATS = [
   'hero',

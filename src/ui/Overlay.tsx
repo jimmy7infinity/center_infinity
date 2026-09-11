@@ -52,13 +52,14 @@ function Header() {
             Center Infinity
           </span>
         </a>
-        <div className="relative z-20 flex flex-col items-end gap-1">
+        <div className="relative z-20 flex flex-col items-end gap-1.5">
           <a
             href="#contact"
             className="label inline-flex min-h-11 items-center transition-colors duration-300 hover:!text-rim"
           >
             Start a project
           </a>
+          <Achievements placement="header" />
           {lastScore > 0 ? (
             <span className="font-mono text-[0.625rem] tracking-[0.18em] text-regolith/70">
               SCORE {String(lastScore).padStart(4, '0')}
@@ -140,8 +141,8 @@ function Services() {
         </Reveal>
         <Reveal delay={80}>
           <p className="display mb-7 max-w-2xl text-[clamp(1.25rem,4vw,2.5rem)] text-balance-tight md:mb-14">
-            Full-stack design and engineering for founders who need the thing to
-            actually exist —{' '}
+            We design and ship the product — the interface, the systems behind
+            it, and the deploy. Founders leave with something that runs,{' '}
             <span className="text-regolith">not a deck about it.</span>
           </p>
         </Reveal>
@@ -229,29 +230,41 @@ function Work() {
                 <p className="mt-2 text-base text-glow sm:mt-4 sm:text-xl md:text-2xl">
                   {project.tagline}
                 </p>
+                <p className="mt-2 font-mono text-[0.625rem] tracking-wide text-regolith/70 sm:mt-3">
+                  {project.role}
+                  <span className="text-regolith/35"> · </span>
+                  {project.audience}
+                </p>
               </Reveal>
             </div>
 
             {project.image ? (
-              <Reveal
-                delay={140}
-                className="min-w-0 lg:row-span-2"
-              >
-                <a
-                  href={project.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block"
-                  aria-label={`Open ${project.name}`}
-                >
+              <Reveal delay={140} className="min-w-0 lg:row-span-2">
+                {project.href ? (
+                  <a
+                    href={project.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block"
+                    aria-label={`Open ${project.name}`}
+                  >
+                    <img
+                      src={project.image}
+                      alt={`${project.name} — product frame`}
+                      className="aspect-[16/10] max-h-[28vh] w-full border border-white/10 object-cover object-top shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition duration-500 group-hover:border-glow/30 sm:max-h-[36vh] lg:aspect-auto lg:max-h-none"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </a>
+                ) : (
                   <img
                     src={project.image}
-                    alt={`${project.name} — live product`}
-                    className="aspect-[16/10] max-h-[28vh] w-full border border-white/10 object-cover object-top shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition duration-500 group-hover:border-glow/30 sm:max-h-[36vh] lg:aspect-auto lg:max-h-none"
+                    alt={`${project.name} — product frame`}
+                    className="aspect-[16/10] max-h-[28vh] w-full border border-white/10 object-cover object-top shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:max-h-[36vh] lg:aspect-auto lg:max-h-none"
                     loading="lazy"
                     decoding="async"
                   />
-                </a>
+                )}
               </Reveal>
             ) : null}
 
@@ -268,7 +281,7 @@ function Work() {
 
               {project.highlights.length > 0 && (
                 <Reveal delay={220}>
-                  <ul className="mt-5 hidden gap-x-8 gap-y-3 border-t border-white/8 pt-5 sm:mt-8 sm:grid sm:grid-cols-3 sm:pt-6 lg:grid-cols-1 xl:grid-cols-3">
+                  <ul className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 border-t border-white/8 pt-4 sm:mt-8 sm:grid-cols-3 sm:gap-y-3 sm:pt-6 lg:grid-cols-1 xl:grid-cols-3">
                     {project.highlights.map((highlight) => (
                       <li
                         key={highlight}
@@ -286,7 +299,7 @@ function Work() {
               )}
 
               <Reveal delay={280}>
-                <div className="mt-4 hidden flex-wrap items-center gap-x-2 gap-y-2 sm:mt-8 sm:flex">
+                <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2 sm:mt-8">
                   <span className="label mr-2 text-[0.625rem] text-regolith/50">
                     Built with
                   </span>
@@ -428,7 +441,6 @@ export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
             <Header />
           </div>
           <SectionNav />
-          <Achievements />
         </div>
       ) : null}
       <GameHud />

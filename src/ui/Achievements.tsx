@@ -7,7 +7,6 @@ import {
   subscribeAchievements,
   type AchievementId,
 } from '../lib/achievements'
-import { scrollState } from '../lib/scroll'
 
 const ANNOUNCE_MS = 3400
 
@@ -175,26 +174,16 @@ function AchievementChip({
   )
 }
 
+type Placement = 'header' | 'game'
+
 /** Discovered achievement icons — new unlocks append and announce via drawer. */
-export function Achievements() {
-  const [warpHidden, setWarpHidden] = useState(false)
+export function Achievements({ placement }: { placement: Placement }) {
   const [unlocked, setUnlocked] = useState<AchievementId[]>(() =>
     getUnlockedAchievements(),
   )
   const [announcingId, setAnnouncingId] = useState<AchievementId | null>(() =>
     getAnnouncingAchievement(),
   )
-
-  // Stay visible during the minigame (in-game unlocks); only dim for warp.
-  useEffect(() => {
-    let frame = 0
-    const loop = () => {
-      setWarpHidden(scrollState.jump > 0.12)
-      frame = requestAnimationFrame(loop)
-    }
-    frame = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(frame)
-  }, [])
 
   useEffect(() => {
     return subscribeAchievements(() => {
@@ -215,21 +204,18 @@ export function Achievements() {
   if (unlocked.length === 0) return null
 
   return (
-    <div
-      className={`pointer-events-none fixed inset-x-[max(1.25rem,env(safe-area-inset-left))] top-[max(5.5rem,calc(env(safe-area-inset-top)+4.5rem))] z-[55] right-[max(1.25rem,env(safe-area-inset-right))] md:inset-x-12 md:top-[5.75rem] ${
-        warpHidden ? 'opacity-0' : 'opacity-100'
-      } transition-opacity duration-300`}
-      aria-hidden={warpHidden}
+    <ul
+      className={`achievement-tray pointer-events-auto ${
+        placement === 'header' ? 'max-w-[min(100%,18rem)] justify-end' : ''
+      }`}
     >
-      <ul className="achievement-tray pointer-events-auto">
-        {unlocked.map((id) => (
-          <AchievementChip
-            key={id}
-            id={id}
-            announcing={id === announcingId}
-          />
-        ))}
-      </ul>
-    </div>
+      {unlocked.map((id) => (
+        <AchievementChip
+          key={id}
+          id={id}
+          announcing={id === announcingId}
+        />
+      ))}
+    </ul>
   )
 }

@@ -15,6 +15,7 @@ const LABELS: Record<BeatId, string> = {
   'work-3': 'Work 3',
   'work-4': 'Work 4',
   'work-5': 'Work 5',
+  'work-6': 'Work 6',
   contact: 'Contact',
   warp: 'Loop',
 }
