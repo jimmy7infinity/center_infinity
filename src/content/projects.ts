@@ -66,7 +66,7 @@ export const projects: Project[] = [
     categories: ['Consumer', 'Social'],
     stack: ['Next.js', 'MongoDB', 'Cloudflare R2', 'Railway'],
     status: 'shipping',
-    href: 'https://dispose.up.railway.app?from=centerinfinity',
+    href: 'https://dispose.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/dispose.jpg',
   },
   {
@@ -85,11 +85,29 @@ export const projects: Project[] = [
     categories: ['AI', 'Ops'],
     stack: ['TypeScript', 'MongoDB', 'Gemini', 'Kimi', 'MCP'],
     status: 'beta',
-    href: 'https://boost360.up.railway.app?from=centerinfinity',
+    href: 'https://boost360.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/boost.jpg',
   },
   {
     index: '04',
+    name: 'Dynasty',
+    tagline: 'A persistent world with economic consequence',
+    description:
+      'A continuous-map game of gathering, building, and long-horizon networks. Play mutates the world; the economy is meant to emerge from desire, scarcity, and interdependence — not a token bolted onto a map. Browser world prototype plus an Unreal 5.8 demonstrator.',
+    audience: 'Players who want consequence, not a tile empire.',
+    role: 'Solo — design corpus, simulation kernel, world prototype',
+    highlights: [
+      'Continuous map, not a tile grid',
+      'Play as the protocol interface',
+      'Browser world + Unreal demonstrator',
+    ],
+    categories: ['Game', 'World'],
+    stack: ['TypeScript', 'Three.js', 'WebGPU', 'Unreal 5.8'],
+    status: 'beta',
+    image: '/projects/dynasty.jpg',
+  },
+  {
+    index: '05',
     name: 'Studio Eternity',
     tagline: 'Local-first AI media, capability first',
     description:
@@ -107,7 +125,7 @@ export const projects: Project[] = [
     image: '/projects/studio-eternity.jpg',
   },
   {
-    index: '05',
+    index: '06',
     name: 'LookingLocal',
     tagline: 'Koh Phangan, at an easier pace',
     description:
@@ -122,11 +140,11 @@ export const projects: Project[] = [
     categories: ['Marketplace', 'Local'],
     stack: ['Next.js', 'FastAPI', 'MongoDB', 'Stripe', 'Cloudinary'],
     status: 'demo',
-    href: 'https://lookinglocal.up.railway.app?from=centerinfinity',
+    href: 'https://lookinglocal.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/lookinglocal.jpg',
   },
   {
-    index: '06',
+    index: '07',
     name: 'Wiktoria Lewandowska',
     tagline: 'A quiet portfolio, built to be read',
     description:
@@ -141,7 +159,7 @@ export const projects: Project[] = [
     categories: ['Client', 'Site'],
     stack: ['React', 'Vite', 'TypeScript', 'Caddy'],
     status: 'shipping',
-    href: 'https://wlewandowska.up.railway.app?from=centerinfinity',
+    href: 'https://wlewandowska.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/wiktoria.jpg',
   },
 ]

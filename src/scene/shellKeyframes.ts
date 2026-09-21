@@ -174,6 +174,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       kf('work-4', 0.82, 0.36, -18, above(-0.35, -0.75), 0.84),
       kf('work-5', 0.78, 0.68, -15, below(-0.6, -0.65), 0.8),
       kf('work-6', 0.9, 0.42, -16, above(-0.7, -0.65), 0.78),
+      kf('work-7', 0.82, 0.28, -14, above(-0.45, -0.7), 0.8),
       // The one dominant close moon. Lit hard from the right so the mass that
       // overlaps the left-hand copy is unlit, keeping the text legible.
       kf('contact', 0.86, 0.52, -8, from(0.9, 0.35, -0.45), 0.9),
@@ -203,6 +204,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       kf('work-4', 0.86, 0.68, 3, below(0.7, -0.6), 0.86),
       kf('work-5', 0.9, 0.22, 5, above(0.85, -0.6), 0.9),
       kf('work-6', 0.76, 0.18, 4, above(0.5, -0.6), 0.88),
+      kf('work-7', 0.88, 0.48, 3, below(0.65, -0.6), 0.86),
       kf('contact', 0.22, 0.16, -6, above(-0.4, -0.7), 0.8),
       kf('warp', 0.72, 0.4, 18, above(0.4, -0.6), 0.9),
     ],
@@ -229,6 +231,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       kf('work-4', 0.7, 0.22, -3, above(0.55, -0.65), 0.84),
       kf('work-5', 0.88, 0.48, -7, below(0.75, -0.65), 0.8),
       kf('work-6', 0.84, 0.82, -8, below(0.7, -0.6), 0.78),
+      kf('work-7', 0.72, 0.36, -5, above(0.6, -0.65), 0.82),
       kf('contact', 0.34, 0.9, -14, below(-0.2, -0.7), 0.7),
       kf('warp', 0.3, 0.7, 16, below(-0.3, -0.6), 0.85),
     ],
@@ -255,6 +258,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
       kf('work-4', 0.92, 0.14, 8, above(0.8, -0.6), 0.9),
       kf('work-5', 0.18, 0.8, 6, below(-0.5, -0.6), 0.88),
       kf('work-6', 0.12, 0.12, 9, above(-0.2, -0.58), 0.92),
+      kf('work-7', 0.22, 0.78, 7, below(-0.35, -0.6), 0.88),
       kf('contact', 0.6, 0.14, -12, above(0.5, -0.6), 0.86),
       kf('warp', 0.5, 0.3, 14, above(0.2, -0.6), 0.9),
     ],
@@ -311,6 +315,12 @@ export const CAMERA_KEYFRAMES: CameraKeyframe[] = [
     position: [0.4, -0.5, 24.2],
     target: [-0.4, 0.6, -4],
     fov: 43,
+  },
+  {
+    at: beatIndex('work-7'),
+    position: [-1.2, 0.5, 23.6],
+    target: [1.2, -0.4, -5],
+    fov: 44,
   },
   {
     at: beatIndex('contact'),

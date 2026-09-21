@@ -16,6 +16,7 @@ const WORK = [
   'work-4',
   'work-5',
   'work-6',
+  'work-7',
 ] as const
 
 export const BEATS = [
