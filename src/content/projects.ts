@@ -30,7 +30,7 @@ export type Project = {
   href?: string
   /**
    * Full-colour capture of the live product, under /public/projects.
-   * `image` is a 1440×900 viewport. `imageWide` is a 1600×800 viewport, used
+   * `image` is a 1440×900 viewport. `imageWide` is a 1920×800 viewport, used
    * when the window is wide enough that the 16:10 shot would letterbox.
    */
   image?: string

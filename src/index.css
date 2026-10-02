@@ -519,16 +519,16 @@
   }
 }
 
-/* The top capture is never cropped. On a short screen it scales down to fit.
-   Wide windows swap in a 2:1 file, so this clamp does not leave side bars. */
+/* Full width of the slot. Cover crops a little if the file is still taller
+   than the slot, instead of leaving black bars down the sides. */
 .color-screen__shot {
   display: block;
   flex: none;
   width: 100%;
   height: auto;
   max-height: 68%;
-  object-fit: contain;
-  object-position: center;
+  object-fit: cover;
+  object-position: center top;
   background: #050506;
 }
 
