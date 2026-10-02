@@ -1,8 +1,6 @@
-import { BrandMark } from './BrandMark'
-
 /**
- * The panel before its first page: bare, with the mark. It leaves inside the
- * entry refresh, so it simply isn't there when the panel redraws.
+ * The panel before its first page: bare. It leaves inside the entry refresh,
+ * so it simply isn't there when the panel redraws.
  */
 export function LoadingScreen({ visible }: { visible: boolean }) {
   if (!visible) return null
@@ -13,7 +11,6 @@ export function LoadingScreen({ visible }: { visible: boolean }) {
       aria-busy
       role="status"
     >
-      <BrandMark size="md" className="mb-5" decorative />
       <p className="ink-label">
         Loading
         <span className="loading-dots" aria-hidden>
