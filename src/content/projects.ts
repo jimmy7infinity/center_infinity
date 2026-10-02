@@ -59,6 +59,13 @@ export const projects: Project[] = [
     stack: ['React', 'Three.js', 'R3F', 'TypeScript', 'Vite'],
     status: 'shipping',
     image: '/projects/center-infinity.jpg',
+    media: [
+      {
+        kind: 'image',
+        src: '/projects/center-infinity-live.jpg',
+        alt: 'The cover, with the crescent field',
+      },
+    ],
   },
   {
     index: '02',
@@ -78,6 +85,10 @@ export const projects: Project[] = [
     status: 'shipping',
     href: 'https://dispose.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/dispose.jpg',
+    media: [
+      { kind: 'image', src: '/projects/dispose-home.jpg', alt: 'Dispose home' },
+      { kind: 'image', src: '/projects/dispose-roll.jpg', alt: 'The roll is finite' },
+    ],
   },
   {
     index: '03',
@@ -97,6 +108,10 @@ export const projects: Project[] = [
     status: 'beta',
     href: 'https://boost360.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/boost.jpg',
+    media: [
+      { kind: 'image', src: '/projects/boost-landing.jpg', alt: 'Boost landing' },
+      { kind: 'image', src: '/projects/boost-room.jpg', alt: 'A Boost room' },
+    ],
   },
   {
     index: '04',
@@ -132,7 +147,13 @@ export const projects: Project[] = [
     categories: ['AI', 'Media'],
     stack: ['FastAPI', 'React', 'MongoDB', 'ComfyUI', 'SeedVR2'],
     status: 'beta',
-    image: '/projects/studio-eternity.jpg',
+    media: [
+      {
+        kind: 'image',
+        src: '/projects/studio-eternity.jpg',
+        alt: 'Studio Eternity',
+      },
+    ],
   },
   {
     index: '06',
@@ -152,6 +173,18 @@ export const projects: Project[] = [
     status: 'demo',
     href: 'https://lookinglocal.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/lookinglocal.jpg',
+    media: [
+      {
+        kind: 'image',
+        src: '/projects/lookinglocal-home.jpg',
+        alt: 'LookingLocal home',
+      },
+      {
+        kind: 'image',
+        src: '/projects/lookinglocal-search.jpg',
+        alt: 'Stays on Koh Phangan',
+      },
+    ],
   },
   {
     index: '07',

@@ -1,5 +1,22 @@
 import type { Project, ProjectMedia } from '../content/projects'
 
+/** A still for the top of the screen when a project has no hero capture yet. */
+function firstStill(media: readonly ProjectMedia[]) {
+  for (const item of media) {
+    switch (item.kind) {
+      case 'image':
+        return item.src
+      case 'video':
+        return item.poster
+      default: {
+        const exhaustive: never = item
+        throw new Error(`Unhandled media: ${JSON.stringify(exhaustive)}`)
+      }
+    }
+  }
+  return undefined
+}
+
 function MediaTile({ media }: { media: ProjectMedia }) {
   switch (media.kind) {
     case 'image':
@@ -46,17 +63,21 @@ export function ColorScreen({
   variant: 'docked' | 'inline'
 }) {
   const media = project.media ?? []
+  // Narrow screens hide the gallery, so the first still stands in for a hero.
+  const hero = project.image ?? (variant === 'inline' ? firstStill(media) : undefined)
 
   return (
     <div className={`color-screen color-screen--${variant} emit-area`}>
       <div key={project.name} className="color-screen__content">
-        {project.image ? (
+        {hero ? (
           <img
             className="color-screen__shot"
-            src={project.image}
+            src={hero}
             alt={`${project.name} — live product`}
             draggable={false}
           />
+        ) : media.length > 0 ? (
+          <div className="color-screen__shot color-screen__empty ink-label">Media</div>
         ) : null}
         <div
           className="color-screen__gallery"
