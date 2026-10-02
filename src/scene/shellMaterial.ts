@@ -9,6 +9,8 @@ export type ShellMaterialUniforms = {
   uOpacity: THREE.IUniform<number>
   uTerminator: THREE.IUniform<number>
   uAmbient: THREE.IUniform<number>
+  /** Cel bands across the terminator; 0 keeps the smooth falloff. */
+  uToonSteps: THREE.IUniform<number>
   /** Unlit hemisphere matches this so crescents vanish into the void like the logo. */
   uVoidColor: THREE.IUniform<THREE.Color>
   uNormalMap: THREE.IUniform<THREE.Texture | null>
@@ -19,41 +21,15 @@ export type ShellMaterialUniforms = {
   uDetailScale: THREE.IUniform<number>
   uDetailTone: THREE.IUniform<number>
   uAlbedoAmount: THREE.IUniform<number>
-  /** World position of the cursor light; see `cursorLight` in the options. */
-  uCursorPos: THREE.IUniform<THREE.Vector3>
-  /** Allowed above 1 so the hot centre clips and bloom picks it up. */
-  uCursorColor: THREE.IUniform<THREE.Color>
-  uCursorStrength: THREE.IUniform<number>
-  uCursorRange: THREE.IUniform<number>
-  /**
-   * 0..1 — how much the lit patch reveals a warm stone cast instead of staying
-   * pure grey under the cursor colour.
-   */
-  uCursorWarmth: THREE.IUniform<number>
-  uWarmReveal: THREE.IUniform<THREE.Color>
-  /** Splash-cursor-style storm: recent surface hits as xyz + age (0..1). */
-  uSplats: THREE.IUniform<THREE.Vector4[]>
-  uTime: THREE.IUniform<number>
-  uStormStrength: THREE.IUniform<number>
-  /** 0..1 — how long the pointer has been dwelling on this shell. */
-  uDwell: THREE.IUniform<number>
-  /** Integrated storm spin phase (radians, always ≥0) — CPU-accumulated. */
-  uStormAngle: THREE.IUniform<number>
-  /** ±1 — fixed spin direction for the life of the cell (never derived from angle). */
-  uStormSpinSign: THREE.IUniform<number>
-  /** 0..1 — how far the storm has spread from the eye (pattern scale stays fixed). */
-  uStormGrow: THREE.IUniform<number>
-  /** Per-storm random seed so each hover is a different cell. */
-  uStormSeed: THREE.IUniform<number>
-  /** Surface point under the cursor (not the lifted light). */
-  uStormCenter: THREE.IUniform<THREE.Vector3>
-  /** Shell centre — storm swirl is authored in the tangent plane here. */
+  /** Point on the surface the strike leaves from. */
+  uBoltOrigin: THREE.IUniform<THREE.Vector3>
   uPlanetCenter: THREE.IUniform<THREE.Vector3>
-  /** 0..1 — current flash opacity (click-driven, brief ambient). */
+  uTime: THREE.IUniform<number>
+  /** 0..1 strike visibility (hold, then fade). */
   uLightning: THREE.IUniform<number>
-  /** 0..1 — how far the stroke has drawn from the eye (arc grow). */
+  /** 0..1 how far the leader's tip has raced out. */
   uLightningDraw: THREE.IUniform<number>
-  /** 0..1 — stacked click intensity (bolt count / hold / brightness). */
+  /** 0..1 stacked click charge: reach, branches, brightness. */
   uLightningPower: THREE.IUniform<number>
   /** Rerolls bolt paths when a strike fires. */
   uLightningSeed: THREE.IUniform<number>
@@ -74,6 +50,8 @@ export type ShellMaterialOptions = {
   lightColor?: THREE.ColorRepresentation
   intensity?: number
   terminator?: number
+  /** Cel bands across the terminator; omit for a smooth falloff. */
+  toonSteps?: number
   opacity?: number
   /**
    * Fill on the unlit hemisphere. Keep at 0 for logo-style crescents — any
@@ -82,14 +60,8 @@ export type ShellMaterialOptions = {
   ambient?: number
   /** Must match the scene clear colour so unlit faces disappear into space. */
   voidColor?: THREE.ColorRepresentation
-  /**
-   * Compiles in a second, local light driven by the cursor. Off by default so
-   * the debris shader stays as cheap as it was.
-   */
-  cursorLight?: boolean
-  cursorColor?: THREE.ColorRepresentation
-  /** Multiplier on the cursor colour, taking it into HDR for bloom. */
-  cursorGain?: number
+  /** Compiles the click strike in; only the hero shells take clicks. */
+  lightning?: boolean
 }
 
 /** Fallback only; every caller passes an explicit direction from its keyframes. */
@@ -98,7 +70,7 @@ const DEFAULT_LIGHT_DIR = new THREE.Vector3(6, -7, 9).normalize()
 const VERTEX_SHADER = /* glsl */ `
 varying vec3 vWorldNormal;
 
-#ifdef SHELL_CURSOR_LIGHT
+#ifdef SHELL_LIGHTNING
 varying vec3 vWorldPosition;
 #endif
 
@@ -139,7 +111,7 @@ void main() {
 #endif
 
   vec4 worldPos = modelMatrix * vec4(position, 1.0);
-#ifdef SHELL_CURSOR_LIGHT
+#ifdef SHELL_LIGHTNING
   vWorldPosition = worldPos.xyz;
 #endif
   gl_Position = projectionMatrix * viewMatrix * worldPos;
@@ -154,33 +126,10 @@ uniform vec3 uTint;
 uniform float uOpacity;
 uniform float uTerminator;
 uniform float uAmbient;
+uniform float uToonSteps;
 uniform vec3 uVoidColor;
 
 varying vec3 vWorldNormal;
-
-#ifdef SHELL_CURSOR_LIGHT
-uniform vec3 uCursorPos;
-uniform vec3 uCursorColor;
-uniform float uCursorStrength;
-uniform float uCursorRange;
-uniform float uCursorWarmth;
-uniform vec3 uWarmReveal;
-uniform vec4 uSplats[8];
-uniform float uTime;
-uniform float uStormStrength;
-uniform float uDwell;
-uniform float uStormAngle;
-uniform float uStormSpinSign;
-uniform float uStormGrow;
-uniform float uStormSeed;
-uniform vec3 uStormCenter;
-uniform vec3 uPlanetCenter;
-uniform float uLightning;
-uniform float uLightningDraw;
-uniform float uLightningPower;
-uniform float uLightningSeed;
-varying vec3 vWorldPosition;
-#endif
 
 #ifdef SHELL_SURFACE
 uniform sampler2D uNormalMap;
@@ -197,28 +146,37 @@ varying vec3 vWorldBitangent;
 varying vec3 vObjectNormal;
 #endif
 
-#ifdef SHELL_CURSOR_LIGHT
-float stormHash11(float n) {
+#ifdef SHELL_LIGHTNING
+uniform vec3 uBoltOrigin;
+uniform vec3 uPlanetCenter;
+uniform float uTime;
+uniform float uLightning;
+uniform float uLightningDraw;
+uniform float uLightningPower;
+uniform float uLightningSeed;
+varying vec3 vWorldPosition;
+
+float boltHash11(float n) {
   return fract(sin(n) * 43758.5453123);
 }
-float stormHash21(vec2 p) {
+float boltHash21(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
-float stormVnoise(vec2 p) {
+float boltVnoise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
-  float a = stormHash21(i);
-  float b = stormHash21(i + vec2(1.0, 0.0));
-  float c = stormHash21(i + vec2(0.0, 1.0));
-  float d = stormHash21(i + vec2(1.0, 1.0));
+  float a = boltHash21(i);
+  float b = boltHash21(i + vec2(1.0, 0.0));
+  float c = boltHash21(i + vec2(0.0, 1.0));
+  float d = boltHash21(i + vec2(1.0, 1.0));
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
-float stormFbm(vec2 p) {
+float boltFbm(vec2 p) {
   float v = 0.0;
   float a = 0.5;
   for (int i = 0; i < 4; i++) {
-    v += a * stormVnoise(p);
+    v += a * boltVnoise(p);
     p = p * 2.07 + vec2(1.7, 9.2);
     a *= 0.5;
   }
@@ -229,7 +187,7 @@ float boltDeltaAng(float a, float pathA) {
   return abs(atan(sin(a - pathA), cos(a - pathA)));
 }
 /**
- * Distance to a RAY from the eye along pathA — not a full diameter.
+ * Distance to a RAY from the origin along pathA — not a full diameter.
  * Plain sin(theta)*sin(dAng) is zero at dAng=π, which mirrored every bolt
  * through the click. Far-side samples are pushed away.
  */
@@ -239,11 +197,112 @@ float boltRayDist(float th, float a, float pathA) {
   float opposite = smoothstep(0.75, 1.25, dAng);
   return mix(cross, 10.0, opposite);
 }
-/** Continuous jagged wander — higher freq / amplitude for a sharp bolt path. */
+/** Continuous jagged wander along the path. */
 float boltZig(float r, float s) {
-  return (stormFbm(vec2(r * 14.0 + s, s * 0.41)) - 0.5) * 0.85
-    + (stormFbm(vec2(r * 28.0 + s * 1.3, 3.1)) - 0.5) * 0.45
-    + (stormVnoise(vec2(r * 48.0, s)) - 0.5) * 0.28;
+  return (boltFbm(vec2(r * 14.0 + s, s * 0.41)) - 0.5) * 0.85
+    + (boltFbm(vec2(r * 28.0 + s * 1.3, 3.1)) - 0.5) * 0.45
+    + (boltVnoise(vec2(r * 48.0, s)) - 0.5) * 0.28;
+}
+
+/**
+ * The strike, in geodesic coords from the click point: the tip races out along
+ * one jagged leader and branches peel off only once it has passed their fork.
+ * Charge stretches the reach and unlocks branches.
+ */
+vec3 lightningLight() {
+  float flash = clamp(uLightning, 0.0, 1.0);
+  float draw = clamp(uLightningDraw, 0.0, 1.0);
+  if (flash < 0.01 || draw < 0.001) return vec3(0.0);
+  vec3 originNormal = normalize(uBoltOrigin - uPlanetCenter);
+  vec3 surfNormal = normalize(vWorldPosition - uPlanetCenter);
+  // Stable tangent frame — avoid a hard axis swap near world-up.
+  vec3 T = cross(vec3(0.0, 1.0, 0.0), originNormal);
+  if (dot(T, T) < 1e-4) T = cross(vec3(1.0, 0.0, 0.0), originNormal);
+  T = normalize(T);
+  vec3 B = cross(originNormal, T);
+  float theta = acos(clamp(dot(surfNormal, originNormal), -1.0, 1.0));
+  float ang = atan(dot(surfNormal, B), dot(surfNormal, T));
+
+  float TAU = 6.2831853;
+  float power = clamp(uLightningPower, 0.0, 1.0);
+  float shellR = max(length(uBoltOrigin - uPlanetCenter), 1e-4);
+  float seed = uLightningSeed;
+  float reach = mix(0.16, 0.95, power);
+
+  float holdFlicker = draw >= 0.995
+    ? (0.78 + 0.22 * boltHash11(floor(uTime * 28.0) + seed))
+    : 1.0;
+  // A one-pixel hairline at any distance, sized in screen pixels. The falloff
+  // must end hard: the ink pass prints anything above ~1% light, so a soft
+  // tail prints as solid ink and the line reads thick.
+  float px = fwidth(theta);
+  float thickness = px * 0.6;
+  float glowW = px * 1.6;
+  vec3 white = vec3(1.0);
+
+  vec3 core = vec3(0.0);
+  vec3 glow = vec3(0.0);
+
+  float mainBase = boltHash11(seed + 0.7) * TAU;
+  float mainLen = reach * (0.75 + boltHash11(seed + 1.3) * 0.25);
+  float mainTip = mainLen * draw;
+  float mainAng = mainBase + boltZig(theta, seed);
+  float mainD = boltRayDist(theta, ang, mainAng);
+  float mainFace = 1.0 - smoothstep(0.65, 1.1, boltDeltaAng(ang, mainAng));
+  float mainAlong = smoothstep(0.0, 0.004, theta)
+    * (1.0 - smoothstep(mainTip * 0.92, mainTip, theta));
+  float mainLine = (1.0 - smoothstep(0.0, thickness, mainD)) * mainFace;
+  float mainEmit = (1.0 - smoothstep(0.0, glowW, mainD)) * mainFace;
+  float tipGlow = exp(-abs(theta - mainTip) * 28.0)
+    * smoothstep(0.01, 0.12, draw)
+    * (1.0 - smoothstep(0.94, 1.0, draw))
+    * mainFace;
+  core += white * (mainLine * mainAlong * 1.7 + tipGlow * mainLine * 1.35) * holdFlicker;
+  glow += white * mainEmit * mainAlong * holdFlicker * 0.5;
+
+  float branchBudget = mix(1.0, 5.0, power);
+  for (int b = 0; b < 5; b++) {
+    float fb = float(b);
+    float bSeed = seed * 1.9 + fb * 19.3;
+    float bh0 = boltHash11(bSeed + 0.3);
+    float bh1 = boltHash11(bSeed + 1.1);
+    float bh2 = boltHash11(bSeed + 2.4);
+    float bh3 = boltHash11(bSeed + 3.7);
+    float bLive = step(fb, branchBudget - 0.05) * step(0.3, bh3);
+    float forkR = mainLen * (0.22 + bh0 * 0.55);
+    float bLen = mainLen * (0.12 + bh1 * 0.2 + bh2 * 0.2) * mix(0.8, 1.2, power);
+    float bDraw = clamp((mainTip - forkR) / max(bLen, 1e-3), 0.0, 1.0);
+    float forkOk = bLive * step(0.001, bDraw);
+
+    float side = bh1 < 0.5 ? -1.0 : 1.0;
+    float peel = side * (0.45 + bh2 * 0.95);
+    float forkAng = mainBase + boltZig(forkR, seed);
+    float alongBranch = max(theta - forkR, 0.0);
+    float peelT = clamp(alongBranch / max(bLen, 1e-3), 0.0, 1.0);
+    float branchAng = forkAng + peel * peelT + boltZig(alongBranch, bSeed) * 0.55;
+
+    float bD = boltRayDist(theta, ang, branchAng);
+    float bFace = 1.0 - smoothstep(0.65, 1.1, boltDeltaAng(ang, branchAng));
+    float bTip = forkR + bLen * bDraw;
+    float bAlong = smoothstep(forkR, forkR + 0.006, theta)
+      * (1.0 - smoothstep(bTip * 0.9, bTip, theta));
+    float bLine = (1.0 - smoothstep(0.0, thickness * 0.85, bD)) * bFace;
+    float bEmit = (1.0 - smoothstep(0.0, glowW, bD)) * bFace;
+    float bTipG = exp(-abs(theta - bTip) * 28.0)
+      * smoothstep(0.02, 0.2, bDraw)
+      * (1.0 - smoothstep(0.92, 1.0, bDraw))
+      * bFace;
+    core += white * (bLine * bAlong * 1.5 + bTipG * bLine * 1.2)
+      * forkOk * holdFlicker * (0.65 + bh2 * 0.25);
+    glow += white * bEmit * bAlong * forkOk * holdFlicker * 0.35;
+  }
+
+  float brightMul = mix(1.35, 2.4, power);
+  // Kept near the top pigment state: any brighter and the ink pass's spread
+  // bleeds the line into its neighbours and it prints thick.
+  core = clamp(core * flash * brightMul, 0.0, 1.2);
+  glow = clamp(glow * flash * brightMul, 0.0, 0.6);
+  return core * 1.2 + glow * 0.04;
 }
 #endif
 
@@ -296,6 +355,18 @@ void main() {
   float ndotl = dot(N, L);
   float lit = smoothstep(-uTerminator, uTerminator, ndotl);
   lit = pow(lit, 1.35);
+  if (uToonSteps > 0.5) {
+    // Bands round *up*, with the first edge near the faintest visible light.
+    // Rounding to nearest erases the soft limb and the crescents read as
+    // shrunken and shifted. Edges are antialiased to one screen pixel.
+    float band = lit * uToonSteps - 0.15;
+    float edge = fwidth(band);
+    lit = clamp(
+      (floor(band) + 1.0 + smoothstep(1.0 - edge, 1.0, fract(band))) / uToonSteps,
+      0.0,
+      1.0
+    );
+  }
   // Soft fill for debris only. Shells pass ambient=0 so the dark hemisphere
   // collapses exactly onto uVoidColor — the logo crescent read.
   lit = uAmbient + (1.0 - uAmbient) * lit;
@@ -305,224 +376,8 @@ void main() {
   // charcoal backdrop would still silhouette the full sphere.
   vec3 rgb = mix(uVoidColor, litSurface, lit * uOpacity);
 
-#ifdef SHELL_CURSOR_LIGHT
-  // Weather cell: calm eye, soft vapour edge, mildly spiral-spun cloud
-  // texture, thin lightning.
-  //
-  // Authored in geodesic coords on the sphere (azimuthal equidistant from the
-  // eye) so cloud density stays consistent as the front creeps around the body.
-  // Tangent-plane UVs were stretching everything past the cursor.
-  vec3 stormNormal = normalize(uStormCenter - uPlanetCenter);
-  vec3 surfNormal = normalize(vWorldPosition - uPlanetCenter);
-  // Stable tangent frame — avoid a hard axis swap that pops UVs when the eye
-  // drifts near world-up.
-  vec3 stormT = cross(vec3(0.0, 1.0, 0.0), stormNormal);
-  float tLen2 = dot(stormT, stormT);
-  if (tLen2 < 1e-4) {
-    stormT = cross(vec3(1.0, 0.0, 0.0), stormNormal);
-  }
-  stormT = normalize(stormT);
-  vec3 stormB = cross(stormNormal, stormT);
-
-  float cosTheta = clamp(dot(surfNormal, stormNormal), -1.0, 1.0);
-  float theta = acos(cosTheta); // geodesic angle from eye, 0..π
-  float ang = atan(dot(surfNormal, stormB), dot(surfNormal, stormT));
-  float TAU = 6.2831853;
-  float seed = uStormSeed;
-
-  // uCursorRange = max geodesic coverage angle (radians).
-  float shellR = max(length(uStormCenter - uPlanetCenter), 1e-4);
-  float maxAngle = max(uCursorRange, 1e-4);
-  float spread = max(maxAngle, 0.0);
-  // Phase is always ≥0 on the CPU; direction is a fixed ±1 for this cell.
-  // Deriving sign from spin itself flipped the spiral when angle crossed 0.
-  float spinSign = uStormSpinSign >= 0.0 ? 1.0 : -1.0;
-  float spin = uStormAngle * spinSign;
-  float grow = clamp(uStormGrow, 0.0, 1.0);
-
-  // Billow texture revolves around the eye with a very mild spiral warp —
-  // low tightness so the chalk clouds stay readable, not arm graphics.
-  float rRef = max(theta, 0.014);
-  float mildDiff = spin * (0.18 / (0.28 + rRef * 2.2));
-  float mildSpiral = 0.16 * log(rRef * 4.0 + 0.3) * spinSign;
-  float spunAng = ang + spin + mildDiff - mildSpiral;
-  vec2 geoUV = vec2(theta * cos(spunAng), theta * sin(spunAng));
-  vec2 uv = geoUV * 2.35;
-
-  // Seed offsets the domain so each storm is a different weather cell.
-  float crawlAmt = uTime * 0.035;
-  vec2 wp = uv * (1.45 + stormHash11(seed + 0.2) * 0.55)
-    + vec2(stormHash11(seed), stormHash11(seed + 1.7)) * 4.0;
-  vec2 q = vec2(
-    stormFbm(wp + vec2(0.0, crawlAmt)),
-    stormFbm(wp + vec2(5.2, 1.3 - crawlAmt * 0.7))
-  );
-  vec2 s = vec2(
-    stormFbm(wp + 3.4 * q + vec2(1.7, 9.2)),
-    stormFbm(wp + 3.4 * q + vec2(8.3, 2.8))
-  );
-  float cloud = stormFbm(wp + 3.2 * s);
-  float cloudHi = stormFbm(wp * 2.4 + 2.0 * s + vec2(crawlAmt * 0.4, -crawlAmt * 0.3));
-
-  // --- Soft vapour body (no tentacles) -------------------------------------
-  float eyeRad = 0.002 + grow * 0.03 + stormHash11(seed + 8.0) * 0.004;
-
-  // Angularly lobed reach so growth isn't a perfect disc.
-  float lobeA = stormFbm(vec2(cos(ang) * 1.7 + seed * 0.1, sin(ang) * 1.7 + seed * 0.13));
-  float lobeB = stormFbm(vec2(cos(ang * 2.0 + 1.3) * 2.4, sin(ang * 2.0 + 1.3) * 2.4 + seed));
-  float lobeC = stormVnoise(vec2(ang * 0.55 + seed, grow * 0.8 + seed * 0.2));
-  float reachMul = 0.5 + 0.65 * lobeA + 0.3 * (lobeB - 0.5) + 0.2 * (lobeC - 0.5);
-  // Track spread only — no min blot. CPU eases coverage so early spread ≈ 0.
-  float softR = max(spread * reachMul, 1e-4);
-
-  float fall = exp(-pow(theta / softR, 1.15));
-  float mist = clamp(cloud * 1.35 + cloudHi * 0.45, 0.0, 1.0);
-  float fringeZone = smoothstep(softR * 0.35, softR * 1.05, theta);
-  float fray = mix(0.75 + 0.25 * mist, mist * mist, fringeZone);
-  float vapourMask = clamp(fall * fray, 0.0, 1.0);
-  vapourMask *= 1.0 - smoothstep(softR * 0.8, softR * 1.5, theta);
-
-  float body = clamp(vapourMask, 0.0, 1.0);
-  float envelope = body * uStormStrength;
-  float eye = smoothstep(0.0, eyeRad * (0.8 + 0.4 * cloud), theta);
-  envelope *= eye;
-  // Soft fringe only — keep the body opaque so the chalk texture stays dense.
-  envelope *= mix(1.0, vapourMask, 0.45);
-  // Soft birth — short enough to read soon, long enough to avoid a chalk pop.
-  float birth = smoothstep(0.0, 0.16, grow);
-  envelope *= birth;
-
-  // Convective cells locked to the spun UV frame — hold until the cell has size.
-  float cells = 0.0;
-  float cellGate = smoothstep(0.12, 0.4, grow);
-  for (int i = 0; i < 6; i++) {
-    float fi = float(i);
-    float h0 = stormHash11(fi * 13.7 + 4.2 + seed);
-    float h1 = stormHash11(fi * 29.3 + 8.6 + seed);
-    float h2 = stormHash11(fi * 41.9 + 3.1 + seed);
-    float cr = 0.04 + h1 * 0.7;
-    float ca = h0 * TAU;
-    float revealed = smoothstep(cr * 0.55, cr * 1.05, spread) * cellGate;
-    vec2 cpos = vec2(cos(ca), sin(ca)) * cr;
-    float sx = 0.07 + h2 * 0.12;
-    float sy = 0.05 + h0 * 0.1;
-    float rot = h1 * TAU;
-    vec2 d = geoUV - cpos;
-    float cs = cos(rot);
-    float sn = sin(rot);
-    d = vec2(cs * d.x + sn * d.y, -sn * d.x + cs * d.y);
-    float ell = length(d / vec2(sx, sy));
-    float blob = 1.0 - smoothstep(0.55, 1.35, ell);
-    cells += blob * (0.45 + h2 * 0.55) * revealed;
-  }
-  cells = clamp(cells * 0.55, 0.0, 1.0) * body;
-
-  float billow = smoothstep(0.2, 0.72, cloud);
-  float denseCore = smoothstep(0.3, 0.8, cloudHi);
-  float density = (billow * 0.85 + cells * 0.55 + denseCore * 0.45) * envelope;
-  float cover = clamp(density * mix(0.2, 1.15, birth), 0.0, 1.0);
-  vec3 cloudHiCol = vec3(0.96, 0.98, 1.0);
-  vec3 cloudLoCol = vec3(0.55, 0.60, 0.70);
-  float loft = clamp(billow * 0.55 + denseCore * 0.5, 0.0, 1.0);
-  vec3 vapour = mix(cloudLoCol, cloudHiCol, loft);
-  // Keep a whisper of the planet tint so it sits on the surface.
-  vapour = mix(uTint * 1.15, vapour, 0.92);
-  vapour *= 0.72 + 0.28 * albedo;
-  // Soft under-shadow, then opaque chalk overpaint — the overpaint is what reads.
-  rgb *= 1.0 - cover * 0.22 * uOpacity;
-  rgb = mix(rgb, vapour, cover * 0.82 * uOpacity);
-
-  // Lightning — animated strike from the click eye: tip races out along one
-  // jagged leader; branches peel from that channel only after the tip reaches
-  // their fork, then grow outward. Ray (not diameter). Thin core, soft glow.
-  vec3 boltRgb = vec3(0.0);
-  vec3 boltLight = vec3(0.0);
-  float power = clamp(uLightningPower, 0.0, 1.0);
-  float draw = clamp(uLightningDraw, 0.0, 1.0);
-  float ambientGate = step(0.9988, stormHash11(floor(uTime * 0.18) + seed * 2.7));
-  float ambientFlash = ambientGate * 0.16 * step(0.25, grow);
-  float flash = max(uLightning, ambientFlash) * step(0.12, grow);
-  float drawAmt = max(draw, ambientGate);
-  float brightMul = mix(1.35, 2.4, power);
-  if (flash > 0.01 && drawAmt > 0.001) {
-    float strikeSeed = uLightningSeed + ambientGate * 41.0;
-    vec3 coreCol = vec3(0.97, 0.92, 1.0);
-    vec3 glowCol = vec3(0.62, 0.38, 1.0);
-    float holdFlicker = drawAmt >= 0.995
-      ? (0.78 + 0.22 * stormHash11(floor(uTime * 28.0) + strikeSeed))
-      : 1.0;
-    // Fine hairline with a whisper of glow — readable without reading as thick.
-    float thickness = 0.00052 / shellR;
-    float glowW = thickness * 22.0;
-
-    float mainBase = stormHash11(strikeSeed + 0.7) * TAU;
-    float mainLen = maxAngle * (0.5 + stormHash11(strikeSeed + 1.3) * 0.48)
-      * mix(0.9, 1.2, power);
-    float mainTip = mainLen * drawAmt;
-
-    float mainAng = mainBase + boltZig(theta, strikeSeed);
-    float mainD = boltRayDist(theta, ang, mainAng);
-    float mainFace = 1.0 - smoothstep(0.65, 1.1, boltDeltaAng(ang, mainAng));
-    float mainAlong = smoothstep(0.0, 0.004, theta)
-      * (1.0 - smoothstep(mainTip * 0.92, mainTip, theta));
-    float mainLine = exp(-(mainD * mainD) / max(thickness * thickness, 1e-12)) * mainFace;
-    float mainEmit = exp(-(mainD * mainD) / max(glowW * glowW, 1e-12)) * mainFace;
-    float tipGlow = exp(-abs(theta - mainTip) * 28.0)
-      * smoothstep(0.01, 0.12, drawAmt)
-      * (1.0 - smoothstep(0.94, 1.0, drawAmt))
-      * mainFace;
-    float mainStr = (mainLine * mainAlong * 1.7 + tipGlow * mainLine * 1.35) * holdFlicker;
-    boltRgb += mix(glowCol, coreCol, clamp(mainLine + tipGlow, 0.0, 1.0)) * mainStr;
-    boltLight += glowCol * mainEmit * mainAlong * holdFlicker * 0.5;
-
-    // Connected branches: attach at fork on the main path, peel gradually,
-    // tip grows from the fork after the leader passes (not a pop-in).
-    float branchBudget = mix(2.0, 5.0, power);
-    for (int b = 0; b < 5; b++) {
-      float fb = float(b);
-      float bSeed = strikeSeed * 1.9 + fb * 19.3;
-      float bh0 = stormHash11(bSeed + 0.3);
-      float bh1 = stormHash11(bSeed + 1.1);
-      float bh2 = stormHash11(bSeed + 2.4);
-      float bh3 = stormHash11(bSeed + 3.7);
-      float bLive = step(fb, branchBudget - 0.05) * step(0.3, bh3);
-      float forkR = mainLen * (0.22 + bh0 * 0.55);
-      float bLen = mainLen * (0.12 + bh1 * 0.2 + bh2 * 0.2) * mix(0.8, 1.2, power);
-      // Branch draw clock: 0 until leader hits fork, then tip races along bLen.
-      float bDraw = clamp((mainTip - forkR) / max(bLen, 1e-3), 0.0, 1.0);
-      float forkOk = bLive * step(0.001, bDraw);
-
-      float side = bh1 < 0.5 ? -1.0 : 1.0;
-      float peel = side * (0.45 + bh2 * 0.95);
-      // Same angle as the leader at the fork — stays attached.
-      float forkAng = mainBase + boltZig(forkR, strikeSeed);
-      float alongBranch = max(theta - forkR, 0.0);
-      float peelT = clamp(alongBranch / max(bLen, 1e-3), 0.0, 1.0);
-      float branchAng = forkAng + peel * peelT + boltZig(alongBranch, bSeed) * 0.55;
-
-      float bD = boltRayDist(theta, ang, branchAng);
-      float bFace = 1.0 - smoothstep(0.65, 1.1, boltDeltaAng(ang, branchAng));
-      float bTip = forkR + bLen * bDraw;
-      float bAlong = smoothstep(forkR, forkR + 0.006, theta)
-        * (1.0 - smoothstep(bTip * 0.9, bTip, theta));
-      float bLine = exp(-(bD * bD) / max(thickness * thickness * 1.05, 1e-12)) * bFace;
-      float bEmit = exp(-(bD * bD) / max(glowW * glowW, 1e-12)) * bFace;
-      float bTipG = exp(-abs(theta - bTip) * 28.0)
-        * smoothstep(0.02, 0.2, bDraw)
-        * (1.0 - smoothstep(0.92, 1.0, bDraw))
-        * bFace;
-      float bStr = (bLine * bAlong * 1.5 + bTipG * bLine * 1.2)
-        * forkOk * holdFlicker * (0.65 + bh2 * 0.25);
-      boltRgb += mix(glowCol, coreCol, clamp(bLine + bTipG, 0.0, 1.0)) * bStr;
-      boltLight += glowCol * bEmit * bAlong * forkOk * holdFlicker * 0.35;
-    }
-  }
-  // Don't bury the bolt in soft vapour — storm presence is enough.
-  float boltGate = max(envelope, uStormStrength * 0.55);
-  boltRgb = clamp(boltRgb * flash * brightMul * boltGate, 0.0, 3.8);
-  boltLight = clamp(boltLight * flash * brightMul * boltGate, 0.0, 1.5);
-  rgb += boltRgb * 1.75 * uOpacity;
-  rgb += boltLight * 0.4 * uOpacity;
+#ifdef SHELL_LIGHTNING
+  rgb += lightningLight() * uOpacity;
 #endif
 
   gl_FragColor = vec4(rgb, 1.0);
@@ -541,6 +396,7 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     uOpacity: { value: opts.opacity ?? 0 },
     uTerminator: { value: opts.terminator ?? 0.08 },
     uAmbient: { value: opts.ambient ?? 0 },
+    uToonSteps: { value: opts.toonSteps ?? 0 },
     uVoidColor: { value: new THREE.Color(opts.voidColor ?? '#0e1016') },
     uNormalMap: { value: surface?.normalMap ?? null },
     uAlbedoMap: { value: surface?.albedoMap ?? null },
@@ -552,31 +408,9 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
     uDetailScale: { value: opts.detailScale ?? 0.6 },
     uDetailTone: { value: opts.detailTone ?? 0.28 },
     uAlbedoAmount: { value: opts.albedoAmount ?? 1 },
-    uCursorPos: { value: new THREE.Vector3() },
-    // Deliberately past white: the buffer is HDR, so letting the centre of the
-    // pool clip is what gives bloom something to bite on and stops the light
-    // reading as a flat blue gel laid over the rock.
-    uCursorColor: {
-      value: new THREE.Color(opts.cursorColor ?? '#8fd8ff').multiplyScalar(
-        opts.cursorGain ?? 2.1,
-      ),
-    },
-    uCursorStrength: { value: 0 },
-    uCursorRange: { value: 1 },
-    uCursorWarmth: { value: 0 },
-    uWarmReveal: { value: new THREE.Color('#c4a882') },
-    uSplats: {
-      value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, -1)),
-    },
-    uTime: { value: 0 },
-    uStormStrength: { value: 0 },
-    uDwell: { value: 0 },
-    uStormAngle: { value: 0 },
-    uStormSpinSign: { value: 1 },
-    uStormGrow: { value: 0 },
-    uStormSeed: { value: 0 },
-    uStormCenter: { value: new THREE.Vector3() },
+    uBoltOrigin: { value: new THREE.Vector3() },
     uPlanetCenter: { value: new THREE.Vector3() },
+    uTime: { value: 0 },
     uLightning: { value: 0 },
     uLightningDraw: { value: 0 },
     uLightningPower: { value: 0 },
@@ -585,7 +419,7 @@ export function createShellMaterial(opts: ShellMaterialOptions): THREE.ShaderMat
 
   const defines: Record<string, number> = {}
   if (surface) defines.SHELL_SURFACE = 1
-  if (opts.cursorLight) defines.SHELL_CURSOR_LIGHT = 1
+  if (opts.lightning) defines.SHELL_LIGHTNING = 1
 
   return new THREE.ShaderMaterial({
     uniforms,

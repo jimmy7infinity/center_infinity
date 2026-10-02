@@ -24,32 +24,8 @@ export function BrandMark({
     <img
       src={`/logo.png?v=${__BRAND_MARK_V__}`}
       alt={decorative ? '' : 'Center Infinity'}
-      className={`${SIZE_CLASS[size]} w-auto opacity-90 ${className}`}
+      className={`ink-mark ${SIZE_CLASS[size]} w-auto ${className}`}
       draggable={false}
     />
-  )
-}
-
-type BrandStampProps = {
-  /** Mono eyebrow that rides next to the mark. */
-  label?: string
-  size?: MarkSize
-  className?: string
-}
-
-/**
- * Quiet brand stamp for section and project openings — mark first, then the
- * label. Keeps the logo in the reading path without turning into chrome.
- */
-export function BrandStamp({
-  label,
-  size = 'xs',
-  className = '',
-}: BrandStampProps) {
-  return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      <BrandMark size={size} />
-      {label ? <p className="label">{label}</p> : null}
-    </div>
   )
 }

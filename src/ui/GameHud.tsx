@@ -110,7 +110,7 @@ export function GameHud() {
                 : 'bottom-10'
             } ${showHint ? 'opacity-70' : 'opacity-0'}`}
           >
-            <p className="label text-center text-[0.625rem] text-regolith">
+            <p className="ink-label text-center text-[0.625rem]">
               {touchFlight
                 ? 'stick · thrust · double-tap burst · auto fire'
                 : 'aim · W thrust · WW burst · click/space fire · A D bank'}

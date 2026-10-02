@@ -10,7 +10,7 @@ export const pointerState = {
   /** Normalised device coordinates, -1..1, y up. */
   x: 0,
   y: 0,
-  /** Frame-to-frame NDC delta — drives storm splat force. */
+  /** Frame-to-frame NDC delta. */
   vx: 0,
   vy: 0,
   /** 1 while a fine pointer is over the document, 0 once it leaves. */
@@ -22,7 +22,7 @@ export const pointerState = {
   enabled: false,
   /**
    * Latched by a click on non-interactive empty space; the scene consumes and
-   * clears it. Used to fire a comet through the click.
+   * clears it. Strikes lightning on a planet, otherwise fires a comet.
    */
   spaceClick: false,
   /** Written by shells each frame — pointer ray currently hits a planet. */
@@ -70,10 +70,10 @@ export function usePointerTracking(active: boolean) {
     const isChromeTarget = (target: EventTarget | null) =>
       target instanceof Element &&
       !!target.closest(
-        'a, button, input, textarea, select, label, [role="button"]',
+        'a, button, input, textarea, select, label, dialog, [role="button"]',
       )
 
-    // Storm clicks often land on DOM copy under the canvas. preventDefault on
+    // Comet clicks often land on DOM copy under the canvas. preventDefault on
     // mousedown stops the browser from painting a text selection ("Scroll", etc).
     const onMouseDown = (event: MouseEvent) => {
       if (isGameActive() || isChromeTarget(event.target)) return

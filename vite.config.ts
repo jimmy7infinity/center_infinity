@@ -35,6 +35,22 @@ export default defineConfig({
         )
       },
     },
+    {
+      // server.mjs takes briefs in production; in dev they are only logged.
+      name: 'dev-brief-endpoint',
+      apply: 'serve',
+      configureServer(server) {
+        server.middlewares.use('/api/brief', (req, res) => {
+          let body = ''
+          req.on('data', (chunk) => (body += chunk))
+          req.on('end', () => {
+            console.log(`[brief] ${body}`)
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ ok: true }))
+          })
+        })
+      },
+    },
   ],
   build: {
     target: 'es2022',

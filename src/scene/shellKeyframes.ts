@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { beatIndex, type BeatId } from '../lib/beats'
 import type { PlanetKind } from './lunarSurface'
 
 const DEG = Math.PI / 180
@@ -9,17 +8,16 @@ const FOV_HALF = 21 * DEG
 const FRAME_REFERENCE_Z = 27
 
 /**
- * Scroll-driven pose for one shell at a given beat.
+ * Where one shell sits in the hero composition.
  *
  * `fx`/`fy` are composition fractions (0..1, y down) rather than world
  * coordinates: they are resolved against the live aspect ratio every frame, so
- * the same table frames correctly on a phone and an ultrawide.
+ * the same pose frames correctly on a phone and an ultrawide.
  *
  * `light` is the world-space direction **toward** the light source, matching the
  * Lambert convention where `dot(N, light)` is positive on the lit hemisphere.
  */
-export type ShellKeyframe = {
-  at: number
+export type ShellPose = {
   fx: number
   fy: number
   z: number
@@ -46,22 +44,14 @@ export type ShellMotion = {
   spinAxis: [number, number, number]
   /** Radians per second. */
   spinRate: number
-  keyframes: ShellKeyframe[]
+  pose: ShellPose
 }
 
-/** Mutable output of {@link sampleShellKeyframe}; reuse one instance per consumer. */
+/** Mutable output of {@link resolveShellPose}; reuse one instance per consumer. */
 export type ShellSample = {
   position: THREE.Vector3
   lightDir: THREE.Vector3
   intensity: number
-}
-
-export type CameraKeyframe = {
-  at: number
-  position: [number, number, number]
-  /** World point the camera looks at — this is what makes the move read as a turn. */
-  target: [number, number, number]
-  fov: number
 }
 
 export type CameraPose = {
@@ -125,30 +115,20 @@ function below(tiltX = 0, tiltZ = -0.6): [number, number, number] {
   return [v.x, v.y, v.z]
 }
 
-function from(x: number, y: number, z: number): [number, number, number] {
-  const v = new THREE.Vector3(x, y, z).normalize()
-  return [v.x, v.y, v.z]
-}
-
-function kf(
-  beat: BeatId,
+function pose(
   fx: number,
   fy: number,
   z: number,
   light: [number, number, number],
   intensity: number,
-): ShellKeyframe {
-  return { at: beatIndex(beat), fx, fy, z, light, intensity }
+): ShellPose {
+  return { fx, fy, z, light, intensity }
 }
 
 /**
- * Four nested crescents. The `hero` beat is the logo composition; every later
- * beat is a deliberately distinct tableau, and because beats are pinned to
- * sections each one lands exactly when its section is centred.
- *
- * Hero depth is staged far→near A → C → B → D so the 2D logo silhouette
- * stays identical (`fx`/`fy`/`diameter` unchanged, `referenceZ` = hero `z`)
- * while world spheres keep flyable gaps between every pair.
+ * Four nested crescents forming the logo. Depth is staged far→near
+ * A → C → B → D so the 2D silhouette holds while the world spheres keep
+ * flyable gaps between every pair.
  */
 export const SHELL_MOTIONS: ShellMotion[] = [
   {
@@ -164,23 +144,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     terminator: 0.18,
     spinAxis: [0.12, 1, 0.05],
     spinRate: -0.016,
-    keyframes: [
-      kf('hero', 0.5, 0.42, -21, above(-0.12, -0.65), 0.76),
-      kf('services', 0.85, 0.34, -12, above(-0.55, -0.7), 0.78),
-      // Work beats: A stays in the right field so left copy stays readable.
-      kf('work-1', 0.86, 0.62, -12, above(-0.75, -0.65), 0.8),
-      kf('work-2', 0.84, 0.72, -15, below(-0.7, -0.6), 0.76),
-      kf('work-3', 0.8, 0.22, -14, above(-0.5, -0.7), 0.82),
-      kf('work-4', 0.82, 0.36, -18, above(-0.35, -0.75), 0.84),
-      kf('work-5', 0.78, 0.68, -15, below(-0.6, -0.65), 0.8),
-      kf('work-6', 0.9, 0.42, -16, above(-0.7, -0.65), 0.78),
-      kf('work-7', 0.82, 0.28, -14, above(-0.45, -0.7), 0.8),
-      // The one dominant close moon. Lit hard from the right so the mass that
-      // overlaps the left-hand copy is unlit, keeping the text legible.
-      kf('contact', 0.86, 0.52, -8, from(0.9, 0.35, -0.45), 0.9),
-      // Sweeps past the camera during the jump and fades on surface crossing.
-      kf('warp', 0.2, 0.55, 20, from(0.6, 0.4, -0.5), 0.9),
-    ],
+    pose: pose(0.5, 0.42, -21, above(-0.12, -0.65), 0.76),
   },
   {
     id: 'B',
@@ -195,19 +159,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     terminator: 0.18,
     spinAxis: [0.15, 0.75, 0.65],
     spinRate: -0.038,
-    keyframes: [
-      kf('hero', 0.5, 0.31, 10, above(0.05, -0.6), 0.88),
-      kf('services', 0.86, 0.22, 4, above(0.75, -0.6), 0.84),
-      kf('work-1', 0.74, 0.24, 6, above(0.6, -0.65), 0.9),
-      kf('work-2', 0.88, 0.28, 5, above(0.8, -0.6), 0.92),
-      kf('work-3', 0.9, 0.58, 4, below(0.75, -0.6), 0.88),
-      kf('work-4', 0.86, 0.68, 3, below(0.7, -0.6), 0.86),
-      kf('work-5', 0.9, 0.22, 5, above(0.85, -0.6), 0.9),
-      kf('work-6', 0.76, 0.18, 4, above(0.5, -0.6), 0.88),
-      kf('work-7', 0.88, 0.48, 3, below(0.65, -0.6), 0.86),
-      kf('contact', 0.22, 0.16, -6, above(-0.4, -0.7), 0.8),
-      kf('warp', 0.72, 0.4, 18, above(0.4, -0.6), 0.9),
-    ],
+    pose: pose(0.5, 0.31, 10, above(0.05, -0.6), 0.88),
   },
   {
     id: 'C',
@@ -222,19 +174,7 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     terminator: 0.16,
     spinAxis: [0.85, 0.15, 0.1],
     spinRate: 0.026,
-    keyframes: [
-      kf('hero', 0.5, 0.62, 0, below(0.08, -0.68), 0.75),
-      kf('services', 0.26, 0.82, -9, below(-0.75, -0.65), 0.78),
-      kf('work-1', 0.9, 0.44, -2, below(0.7, -0.6), 0.84),
-      kf('work-2', 0.7, 0.8, -6, below(0.5, -0.6), 0.82),
-      kf('work-3', 0.86, 0.78, -4, below(0.8, -0.6), 0.84),
-      kf('work-4', 0.7, 0.22, -3, above(0.55, -0.65), 0.84),
-      kf('work-5', 0.88, 0.48, -7, below(0.75, -0.65), 0.8),
-      kf('work-6', 0.84, 0.82, -8, below(0.7, -0.6), 0.78),
-      kf('work-7', 0.72, 0.36, -5, above(0.6, -0.65), 0.82),
-      kf('contact', 0.34, 0.9, -14, below(-0.2, -0.7), 0.7),
-      kf('warp', 0.3, 0.7, 16, below(-0.3, -0.6), 0.85),
-    ],
+    pose: pose(0.5, 0.62, 0, below(0.08, -0.68), 0.75),
   },
   {
     id: 'D',
@@ -249,161 +189,33 @@ export const SHELL_MOTIONS: ShellMotion[] = [
     terminator: 0.16,
     spinAxis: [0.45, 0.45, 0.75],
     spinRate: 0.052,
-    keyframes: [
-      kf('hero', 0.5, 0.65, 16, below(-0.12, -0.58), 0.9),
-      kf('services', 0.8, 0.72, 5, below(0.7, -0.6), 0.86),
-      kf('work-1', 0.16, 0.14, 8, above(-0.3, -0.58), 0.9),
-      kf('work-2', 0.2, 0.86, 7, below(-0.4, -0.6), 0.88),
-      kf('work-3', 0.14, 0.2, 6, above(-0.5, -0.6), 0.9),
-      kf('work-4', 0.92, 0.14, 8, above(0.8, -0.6), 0.9),
-      kf('work-5', 0.18, 0.8, 6, below(-0.5, -0.6), 0.88),
-      kf('work-6', 0.12, 0.12, 9, above(-0.2, -0.58), 0.92),
-      kf('work-7', 0.22, 0.78, 7, below(-0.35, -0.6), 0.88),
-      kf('contact', 0.6, 0.14, -12, above(0.5, -0.6), 0.86),
-      kf('warp', 0.5, 0.3, 14, above(0.2, -0.6), 0.9),
-    ],
+    pose: pose(0.5, 0.65, 16, below(-0.12, -0.58), 0.9),
   },
 ]
 
 /**
- * The camera translates modestly but re-aims a lot: swinging the look target
- * across the scene is what sells the sense of turning and sweeps new regions of
- * the starfield through frame. The warp beat breaks the pattern and charges
- * straight ahead on a wide lens.
+ * Slight look-up so the crescent cluster sits a touch below centre. Framed
+ * wider through the lens rather than by dollying back: the shells span ~37
+ * units of depth, so moving the camera would shrink the near ones far more
+ * than the far ones and break the mark's arrangement.
  */
-export const CAMERA_KEYFRAMES: CameraKeyframe[] = [
-  // Slight look-up so the crescent cluster sits a touch below centre (less top-heavy).
-  { at: beatIndex('hero'), position: [0, -0.2, 27], target: [0, 1.15, -2], fov: 42 },
-  {
-    at: beatIndex('services'),
-    position: [-1.5, 0.4, 25.2],
-    target: [1.6, -0.3, -4],
-    fov: 43,
-  },
-  {
-    at: beatIndex('work-1'),
-    position: [1.8, -0.4, 24.6],
-    target: [-1.6, 0.3, -5],
-    fov: 44,
-  },
-  {
-    at: beatIndex('work-2'),
-    position: [-1.8, 0.6, 24],
-    target: [1.8, -0.5, -6],
-    fov: 45,
-  },
-  {
-    at: beatIndex('work-3'),
-    position: [2, 0.2, 23.4],
-    target: [-1.4, 0.6, -6],
-    fov: 45,
-  },
-  {
-    at: beatIndex('work-4'),
-    position: [1, 0.9, 23.8],
-    target: [-0.8, -0.8, -6],
-    fov: 43,
-  },
-  {
-    at: beatIndex('work-5'),
-    position: [-0.8, 0.3, 23.2],
-    target: [1.4, -0.3, -5],
-    fov: 44,
-  },
-  {
-    at: beatIndex('work-6'),
-    position: [0.4, -0.5, 24.2],
-    target: [-0.4, 0.6, -4],
-    fov: 43,
-  },
-  {
-    at: beatIndex('work-7'),
-    position: [-1.2, 0.5, 23.6],
-    target: [1.2, -0.4, -5],
-    fov: 44,
-  },
-  {
-    at: beatIndex('contact'),
-    position: [-1.8, 0.1, 22],
-    target: [2.4, 0.1, -4],
-    fov: 43,
-  },
-  { at: beatIndex('warp'), position: [0, 0, 12.5], target: [0, 0, -24], fov: 56 },
-]
-
-function bracket<T extends { at: number }>(
-  frames: T[],
-  t: number,
-): { a: T; b: T; u: number } {
-  const last = frames.length - 1
-  let i = 0
-  while (i < last && frames[i + 1].at < t) i += 1
-  const a = frames[i]
-  const b = frames[Math.min(i + 1, last)]
-  const span = b.at - a.at
-  return { a, b, u: span > 0 ? (t - a.at) / span : 0 }
-}
-
-const _lerpDir = new THREE.Vector3()
+export const HERO_CAMERA = {
+  position: [0, -0.2, FRAME_REFERENCE_Z],
+  target: [0, 1.15, -2],
+  fov: 52,
+} as const
 
 /**
- * Interpolate a shell pose at `beat` and write into `out`.
- *
- * No heap allocations: writes into the Vector3 instances already on `out`, so
- * callers should keep one `ShellSample` per shell and pass it every frame.
+ * Resolve a shell's hero pose against the live aspect and write into `out`.
+ * No heap allocations — keep one `ShellSample` per shell.
  */
-export function sampleShellKeyframe(
-  keyframes: ShellKeyframe[],
-  beat: number,
+export function resolveShellPose(
+  motion: ShellMotion,
   aspect: number,
   out: ShellSample,
 ): void {
-  if (keyframes.length === 0) {
-    out.position.set(0, 0, 0)
-    out.lightDir.set(0, 1, 0)
-    out.intensity = 0
-    return
-  }
-
-  const first = keyframes[0]
-  const last = keyframes[keyframes.length - 1]
-  const t = THREE.MathUtils.clamp(beat, first.at, last.at)
-  const { a, b, u } = bracket(keyframes, t)
-
-  resolveFrame(
-    THREE.MathUtils.lerp(a.fx, b.fx, u),
-    THREE.MathUtils.lerp(a.fy, b.fy, u),
-    THREE.MathUtils.lerp(a.z, b.z, u),
-    aspect,
-    out.position,
-  )
-
-  _lerpDir
-    .set(
-      THREE.MathUtils.lerp(a.light[0], b.light[0], u),
-      THREE.MathUtils.lerp(a.light[1], b.light[1], u),
-      THREE.MathUtils.lerp(a.light[2], b.light[2], u),
-    )
-    .normalize()
-  out.lightDir.copy(_lerpDir)
-
-  out.intensity = THREE.MathUtils.lerp(a.intensity, b.intensity, u)
-}
-
-export function sampleCameraKeyframe(beat: number, out: CameraPose): void {
-  const last = CAMERA_KEYFRAMES[CAMERA_KEYFRAMES.length - 1]
-  const t = THREE.MathUtils.clamp(beat, CAMERA_KEYFRAMES[0].at, last.at)
-  const { a, b, u } = bracket(CAMERA_KEYFRAMES, t)
-
-  out.position.set(
-    THREE.MathUtils.lerp(a.position[0], b.position[0], u),
-    THREE.MathUtils.lerp(a.position[1], b.position[1], u),
-    THREE.MathUtils.lerp(a.position[2], b.position[2], u),
-  )
-  out.target.set(
-    THREE.MathUtils.lerp(a.target[0], b.target[0], u),
-    THREE.MathUtils.lerp(a.target[1], b.target[1], u),
-    THREE.MathUtils.lerp(a.target[2], b.target[2], u),
-  )
-  out.fov = THREE.MathUtils.lerp(a.fov, b.fov, u)
+  const { fx, fy, z, light, intensity } = motion.pose
+  resolveFrame(fx, fy, z, aspect, out.position)
+  out.lightDir.set(light[0], light[1], light[2]).normalize()
+  out.intensity = intensity
 }

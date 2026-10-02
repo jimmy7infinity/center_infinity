@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { recordShootingStarTriggered } from '../lib/achievements'
 import { pointerState } from '../lib/pointer'
-import { getHeroCopy, scrollState } from '../lib/scroll'
+import { hasEntered } from '../lib/pages'
 import {
   hitDriftingRockWithSegment,
   pickDriftingRockAlongRay,
@@ -25,18 +25,12 @@ const CROSS_SPAWN_SPAN = 16
 const SKY_SPAWN_MIN = 28
 const SKY_SPAWN_SPAN = 20
 
-const ORANGE_CORE = new THREE.Color('#fff2d6')
-const ORANGE_GLOW = new THREE.Color('#ff8a3a')
-const GREEN_CORE = new THREE.Color('#e8fff4')
-const GREEN_GLOW = new THREE.Color('#3fd98a')
-const BLUE_CORE = new THREE.Color('#eef6ff')
-const BLUE_GLOW = new THREE.Color('#4aa8ff')
+/** The only light source on the panel, so it carries no hue. */
+const COMET_CORE = new THREE.Color('#ffffff')
+const COMET_GLOW = new THREE.Color('#d8d8d8')
 
-const COMET_PALETTES = [
-  { core: ORANGE_CORE, glow: ORANGE_GLOW },
-  { core: GREEN_CORE, glow: GREEN_GLOW },
-  { core: BLUE_CORE, glow: BLUE_GLOW },
-] as const
+/** Seconds after the cover page first shows before the opening comet. */
+const INTRO_COMET_DELAY = 1.1
 
 type CometUniforms = {
   uHead: THREE.IUniform<THREE.Vector3>
@@ -160,8 +154,8 @@ function createMeteor(): Meteor {
     uTail: { value: new THREE.Vector3() },
     uHeadWidth: { value: 0.04 },
     uTailWidth: { value: 0.001 },
-    uCoreColor: { value: ORANGE_CORE.clone() },
-    uGlowColor: { value: ORANGE_GLOW.clone() },
+    uCoreColor: { value: COMET_CORE.clone() },
+    uGlowColor: { value: COMET_GLOW.clone() },
     uOpacity: { value: 0 },
   }
 
@@ -263,10 +257,8 @@ function activateMeteor(
   meteor.active = true
   meteor.prevHead.copy(meteor.start)
 
-  const palette =
-    COMET_PALETTES[Math.floor(Math.random() * COMET_PALETTES.length)]!
-  meteor.uniforms.uCoreColor.value.copy(palette.core)
-  meteor.uniforms.uGlowColor.value.copy(palette.glow)
+  meteor.uniforms.uCoreColor.value.copy(COMET_CORE)
+  meteor.uniforms.uGlowColor.value.copy(COMET_GLOW)
   meteor.uniforms.uHeadWidth.value = meteor.headWidth
   meteor.uniforms.uTailWidth.value = meteor.headWidth * 0.02
 }
@@ -277,6 +269,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
   // Cross-text waits for the intro comet; don't let a timer fire beforehand.
   const spawnTimerRef = useRef(crossText ? Number.POSITIVE_INFINITY : 14 + Math.random() * 10)
   const introSpawnedRef = useRef(false)
+  const sinceEnteredRef = useRef(0)
   const head = useMemo(() => new THREE.Vector3(), [])
   const tail = useMemo(() => new THREE.Vector3(), [])
 
@@ -299,8 +292,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
     const camera = state.camera
     if (!(camera instanceof THREE.PerspectiveCamera)) return
 
-    const warpFade = 1 - THREE.MathUtils.smoothstep(scrollState.jump, 0.04, 0.3)
-    const baseOpacity = (crossText ? 1 : 0.9) * warpFade
+    const baseOpacity = crossText ? 1 : 0.9
 
     /** Spawn into a free slot; optional recycle so click-spam always fires. */
     const trySpawn = (
@@ -327,12 +319,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
 
     // Click empty space → comet. Aim through the click; a hit on debris
     // shatters the rock (handled while the streak advances below).
-    if (
-      crossText &&
-      pointerState.spaceClick &&
-      !pointerState.overShell &&
-      warpFade > 0.05
-    ) {
+    if (crossText && pointerState.spaceClick && !pointerState.overShell) {
       pointerState.spaceClick = false
       if (trySpawn({ x: pointerState.x, y: pointerState.y }, true, true)) {
         spawnTimerRef.current = nextGap()
@@ -340,13 +327,13 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
       }
     }
 
-    // Exactly one comet when the hero mark / “we build” line has mostly arrived.
-    // Periodic spawns stay frozen until this fires so load never doubles up.
+    // Exactly one comet shortly after the cover page first shows. Periodic
+    // spawns stay frozen until this fires so load never doubles up.
+    if (hasEntered()) sinceEnteredRef.current += delta
     if (
       crossText &&
       !introSpawnedRef.current &&
-      getHeroCopy() > 0.88 &&
-      warpFade > 0.05
+      sinceEnteredRef.current > INTRO_COMET_DELAY
     ) {
       introSpawnedRef.current = true
       trySpawn()
@@ -355,7 +342,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
 
     if (Number.isFinite(spawnTimerRef.current)) {
       spawnTimerRef.current -= delta
-      if (spawnTimerRef.current <= 0 && warpFade > 0.05) {
+      if (spawnTimerRef.current <= 0) {
         // Ambient cadence skips when the pool is saturated (don't steal click slots).
         if (!trySpawn()) {
           spawnTimerRef.current = 2 + Math.random() * 2
@@ -367,7 +354,7 @@ export function ShootingStars({ crossText = false }: { crossText?: boolean }) {
 
     for (const meteor of meteorsRef.current) {
       const mesh = meteor.mesh
-      if (!meteor.active || warpFade <= 0.01) {
+      if (!meteor.active) {
         mesh.visible = false
         meteor.uniforms.uOpacity.value = 0
         continue

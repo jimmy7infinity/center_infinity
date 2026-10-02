@@ -2,16 +2,13 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { recordMeteorStrike } from '../lib/achievements'
-import { scrollState } from '../lib/scroll'
+import { INK_SURFACE_DISPLAY } from './InkEffect'
 import { createRockBurstSystem } from '../game/spaceFlyer/rockBurst'
 import {
   setDriftingRockCollider,
   setDriftingRockRayPick,
 } from './driftingRockBridge'
-import {
-  createShellMaterial,
-  getShellMaterialUniforms,
-} from './shellMaterial'
+import { createShellMaterial } from './shellMaterial'
 
 const POOL_SIZE = 5
 
@@ -29,6 +26,21 @@ const DEPTH_BANDS: readonly { range: [number, number]; weight: number }[] = [
  * back on −Z so the camera sees a rim crescent rather than a flat front face.
  */
 const SUN_DIR = new THREE.Vector3(-0.55, 0.86, -0.5).normalize()
+
+/**
+ * The debris canvas skips the ink pass, so the rocks are inked here: neutral
+ * light pigment, with the unlit side landing exactly on the bare panel. This
+ * shader writes display values directly, so the tones are given as such — a
+ * hex tint would be linearised and land darker than the panel itself.
+ */
+const ROCK_TINT = new THREE.Color().setRGB(
+  0.8,
+  0.79,
+  0.76,
+  THREE.LinearSRGBColorSpace,
+)
+const ROCK_LIGHT = new THREE.Color(1, 1, 1)
+const ROCK_TOON_STEPS = 3
 
 /** World hit radius pad — rocks are tiny on screen; streaks need forgiveness. */
 const MIN_HIT_RADIUS = 0.22
@@ -325,11 +337,9 @@ export function DriftingRocks() {
   const material = useMemo(
     () =>
       createShellMaterial({
-        // Cool blue-grey debris — dark enough to sit in front of lit crescents
-        // without going pure black into the void.
-        tint: '#7e8798',
+        tint: ROCK_TINT,
         lightDir: SUN_DIR,
-        lightColor: '#dce6f5',
+        lightColor: ROCK_LIGHT,
         // Dimmer than the shells so rocks read as silhouettes in front, not
         // pasted-on shards that outshine the moons behind them.
         intensity: 1.05,
@@ -337,7 +347,8 @@ export function DriftingRocks() {
         // collapses to a single bright pixel edge.
         terminator: 0.3,
         ambient: 0.05,
-        voidColor: '#0e1016',
+        voidColor: INK_SURFACE_DISPLAY,
+        toonSteps: ROCK_TOON_STEPS,
         opacity: 1,
       }),
     [],
@@ -416,25 +427,12 @@ export function DriftingRocks() {
     }
   }, [material, geometries, bursts])
 
-  const uniforms = useMemo(
-    () => getShellMaterialUniforms(material),
-    [material],
-  )
-
   useFrame((state, delta) => {
-    // Debris drifting at walking pace across a hyperjump reads as a bug, and a
-    // rock at zero opacity is still an opaque void-coloured body that occludes
-    // the streaks behind it. So the fade is quick, and it ends in a hard cull.
-    const jumpFade = 1 - THREE.MathUtils.smoothstep(scrollState.jump, 0.05, 0.35)
-    uniforms.uOpacity.value = jumpFade
-    const cleared = jumpFade <= 0.01
-
     const camera = state.camera
     if (!(camera instanceof THREE.PerspectiveCamera)) return
 
     spawnTimerRef.current -= delta
-    // Spawning through the jump is what leaves rocks mid-flight on the way out.
-    if (spawnTimerRef.current <= 0 && !cleared) {
+    if (spawnTimerRef.current <= 0) {
       const inactive = rocksRef.current.find((rock) => !rock.active)
       if (inactive) {
         activateRock(inactive, camera)
@@ -448,8 +446,7 @@ export function DriftingRocks() {
       const mesh = meshRefs.current[i]
       if (!mesh) continue
 
-      if (!rock.active || cleared) {
-        if (cleared) rock.active = false
+      if (!rock.active) {
         mesh.visible = false
         continue
       }

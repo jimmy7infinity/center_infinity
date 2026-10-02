@@ -1,8 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { Overlay } from './ui/Overlay'
-import { StaticBackdrop } from './ui/StaticBackdrop'
 import { LoadingScreen } from './ui/LoadingScreen'
-import { enterSite, useSmoothScroll } from './lib/scroll'
+import { enterSite, usePageInput } from './lib/pages'
 import { usePointerTracking } from './lib/pointer'
 import { detectQuality, type QualityTier } from './lib/quality'
 
@@ -20,41 +19,29 @@ export function App() {
   }, [])
 
   const webgl = tier === 'high' || tier === 'medium'
-  useSmoothScroll(webgl, tier !== null)
+  usePageInput(entered)
   usePointerTracking(webgl && entered)
-
-  // Static path — no warp intro; dismiss loader once tier is known.
-  useEffect(() => {
-    if (tier !== 'static') return
-    setSceneReady(true)
-    setEntered(true)
-  }, [tier])
 
   const onSceneReady = useCallback(() => {
     setSceneReady(true)
   }, [])
 
-  // Start the warp the moment the scene has drawn — not while the chunk is still loading.
+  // The first page draws once the scene has a frame — the static panel needs none.
   useEffect(() => {
-    if (!webgl || !sceneReady || entered) return
-    enterSite()
-    setEntered(true)
-  }, [webgl, sceneReady, entered])
-
-  const showLoader = tier === null || (webgl && !sceneReady)
+    if (tier === null || entered) return
+    if (webgl && !sceneReady) return
+    enterSite(() => setEntered(true))
+  }, [tier, webgl, sceneReady, entered])
 
   return (
     <>
-      <LoadingScreen visible={showLoader} />
-      {tier === 'static' || tier === null ? (
-        <StaticBackdrop />
-      ) : (
-        <Suspense fallback={<StaticBackdrop />}>
+      <LoadingScreen visible={!entered} />
+      {webgl ? (
+        <Suspense fallback={null}>
           <Scene tier={tier} onReady={onSceneReady} />
         </Suspense>
-      )}
-      {/* Keep copy mounted under the loader so anchors/Lenis measure correctly. */}
-      <Overlay showChrome={entered && !showLoader} />
+      ) : null}
+      <Overlay showChrome={entered} />
     </>
   )
 }

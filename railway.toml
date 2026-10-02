@@ -1,4 +1,5 @@
-# Vite SPA → static dist, served on Railway's $PORT.
+# Vite SPA built to dist, served with the brief endpoint by server.mjs on
+# Railway's $PORT. Optional env: RESEND_API_KEY, BRIEF_TO, BRIEF_FROM, BRIEFS_DIR.
 [build]
 builder = "RAILPACK"
 buildCommand = "pnpm install --frozen-lockfile && pnpm build"

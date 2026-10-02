@@ -1,11 +1,6 @@
 import type { GameId } from '../game/types'
 import { unlockAchievement } from './achievements'
-import {
-  hasEntered,
-  isIntroWarpActive,
-  setSectionPagingPaused,
-  triggerSiteLoop,
-} from './scroll'
+import { goToPage, hasEntered, setPagingPaused } from './pages'
 
 export const GAME_DURATION_SEC = 30
 export const POINTS_PER_ROCK = 100
@@ -77,9 +72,7 @@ export function addGameScore(points: number) {
 /** WebGL path only — caller should already know the scene is up. */
 export function canEnterGame() {
   if (gameMode.active) return false
-  if (!hasEntered()) return false
-  if (isIntroWarpActive()) return false
-  return true
+  return hasEntered()
 }
 
 export function enterGame(id: GameId) {
@@ -96,8 +89,8 @@ export function enterGame(id: GameId) {
   gameMode.gameOver = false
   gameMode.score = 0
 
-  // Stay on the current tableau — no scroll/camera jump.
-  setSectionPagingPaused(true)
+  // Stay on the current page — no camera jump.
+  setPagingPaused(true)
   setGameVeil(1)
   unlockAchievement('gamer')
   notify()
@@ -117,8 +110,8 @@ export function triggerGameOver() {
 }
 
 /**
- * Ends the run, restores site systems, then fires the existing loop/warp back
- * to the hero. Safe to call once; subsequent calls while inactive are no-ops.
+ * Ends the run, restores site systems, then refreshes back to the hero. Safe
+ * to call once; subsequent calls while inactive are no-ops.
  */
 export function exitGame() {
   if (!gameMode.active) return
@@ -130,10 +123,8 @@ export function exitGame() {
   gameMode.endedAt = 0
   gameMode.gameOver = false
 
-  setSectionPagingPaused(false)
-  // Raise warp veil before dropping the game veil so copy never flashes mid-cut.
-  document.documentElement.style.setProperty('--warp-veil', '1')
-  triggerSiteLoop()
+  setPagingPaused(false)
+  goToPage(0)
   setGameVeil(0)
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur()

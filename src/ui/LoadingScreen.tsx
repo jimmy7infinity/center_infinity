@@ -1,23 +1,20 @@
 import { BrandMark } from './BrandMark'
 
 /**
- * Visible from first paint until the WebGL scene is ready to start the warp.
- * Keeps the page from reading as frozen during the silent load gap.
+ * The panel before its first page: bare, with the mark. It leaves inside the
+ * entry refresh, so it simply isn't there when the panel redraws.
  */
 export function LoadingScreen({ visible }: { visible: boolean }) {
+  if (!visible) return null
+
   return (
     <div
-      className={`fixed inset-0 z-[80] flex flex-col items-center justify-center bg-void transition-opacity duration-500 ${
-        visible
-          ? 'pointer-events-auto opacity-100'
-          : 'pointer-events-none opacity-0'
-      }`}
-      aria-hidden={!visible}
-      aria-busy={visible}
+      className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-void"
+      aria-busy
       role="status"
     >
-      <BrandMark size="lg" className="mb-6 opacity-95" decorative />
-      <p className="label text-regolith">
+      <BrandMark size="md" className="mb-5" decorative />
+      <p className="ink-label">
         Loading
         <span className="loading-dots" aria-hidden>
           <span>.</span>

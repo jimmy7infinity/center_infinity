@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import {
-  Bloom,
-  ChromaticAberration,
-  EffectComposer,
-  Noise,
-  Vignette,
-} from '@react-three/postprocessing'
-import { BlendFunction } from 'postprocessing'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { EffectComposer } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { Shells } from './Shells'
 import { DriftingRocks } from './DriftingRocks'
@@ -17,46 +10,29 @@ import { SpaceFlyer } from '../game/spaceFlyer'
 import { dprFor, type QualityTier } from '../lib/quality'
 import { cameraBridge } from '../lib/cameraBridge'
 import { isGameActive, subscribeGameMode } from '../lib/gameMode'
+import { InkEffect } from './InkEffect'
+import { HERO_CAMERA } from './shellKeyframes'
 
+/**
+ * Scene-space void, shared with the shells' unlit faces. The ink pass prints it
+ * as bare panel; anything lighter would read as faint pigment.
+ */
 const VOID = '#0e1016'
 
-function Effects({ tier }: { tier: QualityTier }) {
-  const aberrationOffset = useMemo(
-    () => new THREE.Vector2(0.00025, 0.0004),
-    [],
-  )
+/** No bloom, fringing, vignette or moving grain — those are camera and screen tells. */
+function InkEffects() {
+  const dpr = useThree((state) => state.viewport.dpr)
+  const effect = useMemo(() => new InkEffect(), [])
 
-  if (tier === 'medium') {
-    return (
-      <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={0.38}
-          luminanceThreshold={0.3}
-          luminanceSmoothing={0.2}
-          mipmapBlur
-          resolutionScale={0.4}
-        />
-        <Vignette offset={0.3} darkness={0.68} />
-      </EffectComposer>
-    )
-  }
+  useEffect(() => {
+    effect.setPixelRatio(dpr)
+  }, [effect, dpr])
+
+  useEffect(() => () => effect.dispose(), [effect])
 
   return (
     <EffectComposer multisampling={0}>
-      <Bloom
-        intensity={0.48}
-        luminanceThreshold={0.26}
-        luminanceSmoothing={0.2}
-        mipmapBlur
-        resolutionScale={0.65}
-      />
-      <ChromaticAberration
-        offset={aberrationOffset}
-        radialModulation
-        modulationOffset={0.42}
-      />
-      <Vignette offset={0.28} darkness={0.72} />
-      <Noise opacity={0.02} blendFunction={BlendFunction.OVERLAY} />
+      <primitive object={effect} />
     </EffectComposer>
   )
 }
@@ -85,7 +61,7 @@ function ReadySignal({ onReady }: { onReady?: () => void }) {
     let raf = 0
     const tick = () => {
       frames += 1
-      // A couple of frames so the first warp streak is already in the pipeline.
+      // A couple of frames so the first page draws without a shader-compile hitch.
       if (frames >= 2) {
         onReady?.()
         return
@@ -96,6 +72,11 @@ function ReadySignal({ onReady }: { onReady?: () => void }) {
     return () => cancelAnimationFrame(raf)
   }, [onReady])
   return null
+}
+
+/** A sparse field: printed dots, not a sky full of lights. */
+function starCount(tier: QualityTier) {
+  return tier === 'high' ? 275 : 140
 }
 
 function useGameMounted() {
@@ -122,14 +103,14 @@ function BackgroundScene({
         alpha: false,
         powerPreference: 'high-performance',
       }}
-      camera={{ position: [0, -0.2, 27], fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: [...HERO_CAMERA.position], fov: HERO_CAMERA.fov, near: 0.1, far: 200 }}
     >
       <color attach="background" args={[VOID]} />
       <ReadySignal onReady={onReady} />
       <Shells />
       {gameOn ? <SpaceFlyer /> : null}
-      <Starfield count={tier === 'high' ? 1100 : 550} />
-      <Effects tier={tier} />
+      <Starfield count={starCount(tier)} />
+      <InkEffects />
     </Canvas>
   )
 }
@@ -147,7 +128,7 @@ function ForegroundDebris({ tier }: { tier: QualityTier }) {
         premultipliedAlpha: true,
         powerPreference: 'high-performance',
       }}
-      camera={{ position: [0, -0.2, 27], fov: 42, near: 0.1, far: 200 }}
+      camera={{ position: [...HERO_CAMERA.position], fov: HERO_CAMERA.fov, near: 0.1, far: 200 }}
       // R3F sets pointer-events:auto on the root; className alone loses the fight.
       style={{ background: 'transparent', pointerEvents: 'none' }}
       onCreated={({ gl }) => {

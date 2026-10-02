@@ -1,40 +1,46 @@
 @import 'tailwindcss';
 
 @theme {
-  /* A neo-grotesque for everything, and a mono for anything that reads as data.
-     The previous pairing leaned on an italic display serif, which is what made
-     the page read as decorative rather than as a studio that ships software. */
+  /* A neo-grotesque for reading, and a mono for anything that reads as data. */
   --font-sans: 'Switzer', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
-  /* Wide geometric display — hero wordmark. */
-  --font-display: 'Science Gothic', 'Switzer', ui-sans-serif, system-ui, sans-serif;
   /* Sci-fi display — GAME OVER stingers only. */
   --font-arcade: 'Orbitron', ui-sans-serif, system-ui, sans-serif;
+  --font-wordmark: 'Michroma', ui-sans-serif, system-ui, sans-serif;
 
-  /* Cold blue-void field. Text is cool silver, not neutral grey. */
-  --color-void: #0e1016;
-  --color-ash: #141820;
-  --color-regolith: #7e8aa0;
-  --color-rim: #dce6f4;
-  --color-glow: #a8bdd8;
+  /* A dark-mode e-ink panel. Greys only; the canvas is quantised by InkEffect,
+     whose surface and light pigment must match void and rim here. */
+  --color-void: #323230;
+  --color-ash: #383836;
+  --color-regolith: #94928c;
+  --color-rim: #e2dfd8;
+  --color-glow: #bfbcb5;
+  /* Printed hairline — light pigment at low coverage. */
+  --color-rule: rgb(226 223 216 / 0.14);
 
-  /* Three signal colours, no more. They carry status and category so a section
-     can be read at a glance instead of parsed sentence by sentence, and they
-     stay off the planets, whose grey is deliberate. */
-  --color-live: #5ee0b0;
-  --color-beta: #f2b35e;
-  --color-demo: #7cc7f5;
+  /* The emitters: real light set into the panel, one neutral white. */
+  --color-emit: #f1efea;
 }
 
 @layer base {
   html {
-    --warp-veil: 1;
-    /* Minigame fade — independent of intro/runway/loop warp. */
+    /* Minigame fade. */
     --game-veil: 0;
-    /* Hero logo / we-build — held until after planets finish arriving. */
-    --hero-copy: 0;
-    background-color: var(--color-void);
+    /* Thin bezel the panel sits recessed under. */
+    --ink-bezel: clamp(12px, 1.4vw, 20px);
+    --ink-gutter: calc(var(--ink-bezel) + clamp(1.25rem, 4.5vw, 3.5rem));
+    --ink-status-h: calc(var(--ink-bezel) + env(safe-area-inset-top) + 3.25rem);
+    --ink-nav-h: calc(var(--ink-bezel) + env(safe-area-inset-bottom) + 3.5rem);
+    --ink-footer-h: 3rem;
+    background-color: #262625;
     color-scheme: dark;
+  }
+
+  /* One page at a time: the document itself never scrolls. */
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -45,15 +51,9 @@
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    overscroll-behavior-y: none;
+    overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-  }
-
-  /* Lenis drives scroll; the document must stay tall but never show native bars. */
-  html.lenis,
-  html.lenis body {
-    height: auto;
   }
 
   ::selection {
@@ -62,17 +62,696 @@
   }
 }
 
-@utility text-balance-tight {
+/* ------------------------------------------------------------------ */
+/* Type. Modest sizes, flat pigment, no glow: printed, not lit.        */
+/* ------------------------------------------------------------------ */
+
+@utility ink-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-regolith);
+}
+
+/* The studio's name: a wide, engineered face, set small and open. */
+@utility ink-wordmark {
+  font-family: var(--font-wordmark);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  line-height: 1;
+  /* Michroma has a single weight; a hairline stroke gives it more body. */
+  -webkit-text-stroke: 0.45px currentColor;
+  text-transform: uppercase;
+  color: var(--color-rim);
+}
+
+@utility ink-title {
+  font-size: clamp(1.5rem, 3vw, 2.375rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
   text-wrap: balance;
+  color: var(--color-rim);
 }
 
-/* Driven per-frame from the scroll loop; see refreshWarp(). */
-@utility warp-veil {
-  opacity: calc((1 - var(--warp-veil, 0)) * (1 - var(--game-veil, 0)));
+@utility ink-lede {
+  font-size: clamp(1rem, 1.4vw, 1.1875rem);
+  line-height: 1.45;
+  color: var(--color-glow);
+  text-wrap: pretty;
 }
 
-/* Minigame: copy stays mounted for anchors but must not steal clicks. */
-html.game-active .warp-veil {
+@utility ink-body {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--color-regolith);
+  text-wrap: pretty;
+}
+
+/* E-ink redraws, it doesn't animate: hover states switch, never fade. */
+@utility ink-link {
+  color: inherit;
+  text-decoration: underline 1px transparent;
+  text-underline-offset: 0.35em;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-rim);
+    text-decoration-color: currentColor;
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--color-rim);
+    outline-offset: 3px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The display: status bar, pages, page footer.                        */
+/* ------------------------------------------------------------------ */
+
+.ink-statusbar,
+.ink-pagenav {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-inline: var(--ink-gutter);
+}
+
+.ink-statusbar {
+  top: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  height: var(--ink-status-h);
+  padding-top: calc(var(--ink-bezel) + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--color-rule);
+  /* A raised strip of panel, lit from above: it lands its shadow on the page. */
+  background: var(--color-void);
+  box-shadow:
+    0 1px 0 rgb(0 0 0 / 0.35),
+    0 10px 22px -12px rgb(0 0 0 / 0.7);
+}
+
+.ink-statusbar__title {
+  max-width: 40vw;
+  margin: 0;
+  color: var(--color-rim);
+  text-align: center;
+}
+
+.ink-pagenav {
+  bottom: 0;
+  gap: clamp(1rem, 3vw, 2rem);
+  height: var(--ink-nav-h);
+  padding-bottom: calc(var(--ink-bezel) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-rule);
+  /* Raised the same way; its top lip catches the light, and the page beside it
+     darkens where the strip stands over it. */
+  background: var(--color-void);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.04),
+    0 -1px 0 rgb(0 0 0 / 0.3),
+    0 -8px 18px -12px rgb(0 0 0 / 0.55);
+}
+
+.ink-pagenav button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.ink-pagenav__track {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ink-pagenav__segment {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 2.75rem;
+  cursor: pointer;
+}
+
+.ink-pagenav__segment span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: rgb(226 223 216 / 0.18);
+}
+
+.ink-pagenav__segment:hover span {
+  background: rgb(226 223 216 / 0.42);
+}
+
+.ink-pagenav__segment span.is-active {
+  background: var(--color-rim);
+}
+
+.ink-pagenav__segment:focus-visible {
+  outline: 1px solid var(--color-rim);
+  outline-offset: -0.75rem;
+}
+
+/* The contact page's colophon: one more strip of panel, standing on the page
+   just above the page footer and shading the page above it. */
+.ink-footer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: var(--ink-nav-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: var(--ink-footer-h);
+  padding-inline: var(--ink-gutter);
+  border-top: 1px solid var(--color-rule);
+  background: var(--color-void);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.04),
+    0 -1px 0 rgb(0 0 0 / 0.3),
+    0 -8px 18px -12px rgb(0 0 0 / 0.55);
+  pointer-events: auto;
+}
+
+.ink-footer__social {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--color-regolith);
+
+  &:hover {
+    color: var(--color-rim);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--color-rim);
+    outline-offset: 1px;
+  }
+}
+
+.ink-page--footed {
+  bottom: calc(var(--ink-nav-h) + var(--ink-footer-h));
+}
+
+/* A key on the device: a raised cap that sinks when pressed or chosen. */
+.ink-chip {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--color-rule);
+  background: var(--color-void);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-regolith);
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 2px 4px -1px rgb(0 0 0 / 0.45);
+
+  &:hover {
+    color: var(--color-rim);
+    border-color: rgb(226 223 216 / 0.28);
+  }
+
+  &[aria-pressed='true'] {
+    border-color: rgb(226 223 216 / 0.5);
+    background: var(--color-ash);
+    color: var(--color-rim);
+    box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.55);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--color-rim);
+    outline-offset: 2px;
+  }
+}
+
+/* The one solid key: light pigment, raised. */
+.ink-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border: 0;
+  background: var(--color-rim);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-void);
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 6px 14px -6px rgb(0 0 0 / 0.75);
+
+  &:hover {
+    background: #f1efea;
+  }
+
+  &:active {
+    box-shadow:
+      inset 0 2px 4px rgb(0 0 0 / 0.3),
+      0 1px 2px rgb(0 0 0 / 0.5);
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    cursor: progress;
+    background: var(--color-glow);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--color-rim);
+    outline-offset: 3px;
+  }
+}
+
+/* The brief: a sheet lifted off the panel. */
+.ink-dialog {
+  width: min(34rem, calc(100vw - 2 * var(--ink-bezel) - 1.5rem));
+  max-height: calc(100dvh - 2 * var(--ink-bezel) - 1.5rem);
+  margin: auto;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid rgb(226 223 216 / 0.18);
+  background: var(--color-void);
+  color: var(--color-rim);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 30px 60px -20px rgb(0 0 0 / 0.85),
+    0 10px 24px -12px rgb(0 0 0 / 0.6);
+  overscroll-behavior: contain;
+}
+
+.ink-dialog::backdrop {
+  background: rgb(14 14 13 / 0.62);
+}
+
+.ink-dialog__body {
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+}
+
+.ink-dialog__close {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-rule);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-rim);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--color-rim);
+    outline-offset: 2px;
+  }
+}
+
+/* Fields are wells cut into the sheet. */
+.ink-field {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--color-rule);
+  background: #2b2b29;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--color-rim);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.45);
+
+  &::placeholder {
+    color: rgb(148 146 140 / 0.7);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgb(226 223 216 / 0.5);
+  }
+}
+
+.ink-field--area {
+  min-height: 8rem;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.ink-page {
+  position: absolute;
+  inset: var(--ink-status-h) 0 var(--ink-nav-h);
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--ink-gutter);
+  scrollbar-width: thin;
+  scrollbar-color: rgb(226 223 216 / 0.22) transparent;
+}
+
+.ink-page[hidden] {
+  display: none;
+}
+
+.ink-page__inner {
+  width: 100%;
+  max-width: 72rem;
+  margin: auto;
+  padding-block: clamp(1.75rem, 6vh, 4rem);
+}
+
+/* ------------------------------------------------------------------ */
+/* Project pages: e-ink info on the left, a colour screen set into the */
+/* device on the right.                                                */
+/* ------------------------------------------------------------------ */
+
+@media (min-width: 1024px) {
+  .ink-page--split {
+    padding-right: calc(50vw + clamp(1.5rem, 3.5vw, 3.5rem));
+  }
+
+  .ink-page__inner--split {
+    max-width: 34rem;
+  }
+}
+
+.color-screen {
+  position: relative;
+  overflow: hidden;
+  background: #050506;
+  isolation: isolate;
+}
+
+/* Fills the right half of the device, from status bar to page footer, out to
+   the bezel. Above the panel's texture and room light (z 100) — it is lit, not
+   printed — and under the bezel (z 102). */
+.color-screen--docked {
+  position: fixed;
+  top: var(--ink-status-h);
+  bottom: var(--ink-nav-h);
+  left: 50vw;
+  right: var(--ink-bezel);
+  z-index: 101;
+  display: none;
+  opacity: calc(1 - var(--game-veil, 0));
+}
+
+@media (min-width: 1024px) {
+  .color-screen--docked {
+    display: block;
+  }
+}
+
+/* On a phone the page has to fit without scrolling: just the screenshot. */
+.color-screen--inline {
+  margin-top: 1.75rem;
+  aspect-ratio: 16 / 10;
+}
+
+.color-screen--inline .color-screen__gallery {
+  display: none;
+}
+
+.color-screen--inline .color-screen__shot {
+  max-height: none;
+}
+
+@media (min-width: 1024px) {
+  .color-screen--inline {
+    display: none;
+  }
+}
+
+.color-screen__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  animation: lcd-on 220ms ease-out both;
+}
+
+/* An LCD switching content: a brief dip, never the e-ink flash. */
+@keyframes lcd-on {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.color-screen__shot {
+  display: block;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 58%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.color-screen__gallery {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  gap: 2px;
+  grid-template-columns: 1fr;
+}
+
+.color-screen__gallery[data-count='2'],
+.color-screen__gallery[data-count='4'] {
+  grid-template-columns: 1fr 1fr;
+}
+
+.color-screen__gallery[data-count='3'] {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.color-screen__gallery[data-count='3'] > :first-child {
+  grid-row: span 2;
+}
+
+.color-screen__media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.color-screen__empty {
+  display: grid;
+  place-items: center;
+  background: #0b0b0c;
+  color: rgb(255 255 255 / 0.18);
+}
+
+/* Glass: one soft reflection of the room light, from the same corner as the
+   light falling on the panel. */
+.color-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    118deg,
+    rgb(255 255 255 / 0.07) 0%,
+    rgb(255 255 255 / 0.02) 28%,
+    transparent 46%
+  );
+}
+
+/* The mark's dark disc prints as bare panel, leaving only its crescents. */
+.ink-mark {
+  filter: brightness(1.7) url(#ink-photo);
+}
+
+/* ------------------------------------------------------------------ */
+/* Emitters — the panel's only light.                                  */
+/* ------------------------------------------------------------------ */
+
+/* The housing: a pinhole recessed into the panel. The light itself is
+   painted additively above everything by EmitterLight. */
+.emitter {
+  --emit: var(--color-emit);
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--emit) 30%, #1b1b1a);
+  box-shadow:
+    inset 0 1px 1.5px rgb(0 0 0 / 0.7),
+    0 0.5px 0 rgb(255 255 255 / 0.07);
+}
+
+/* Unlit: just the empty housing. */
+.emitter--off {
+  background: #2a2a29;
+}
+
+.emitter-light {
+  position: fixed;
+  inset: 0;
+  z-index: 103;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mix-blend-mode: plus-lighter;
+}
+
+@supports not (mix-blend-mode: plus-lighter) {
+  .emitter-light {
+    mix-blend-mode: screen;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Page refresh. Timings must match lib/refresh.ts: the page swaps at  */
+/* 130ms, inside the full-pigment flash.                               */
+/* ------------------------------------------------------------------ */
+
+/* Over the pages and chrome, under the refresh and the panel's texture, so it
+   prints like everything else on the e-ink. */
+.warp-mesh {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: calc(1 - var(--game-veil, 0));
+}
+
+/* Only the page area redraws: the bezel, status bar and page footer are
+   hardware and never flash. */
+.refresh-veil {
+  position: fixed;
+  top: var(--ink-status-h);
+  bottom: var(--ink-nav-h);
+  inset-inline: var(--ink-bezel);
+  z-index: 99;
+  pointer-events: none;
+  opacity: 0;
+}
+
+html.is-refreshing .refresh-veil {
+  animation: ink-refresh 440ms step-end both;
+}
+
+@keyframes ink-refresh {
+  /* Both flashes held well short of full white: on a dark panel a full
+     inversion reads as a camera flash, not a waveform. */
+  0% {
+    opacity: 0.5;
+    background: transparent;
+    backdrop-filter: invert(1);
+  }
+  22% {
+    opacity: 0.55;
+    background: var(--color-glow);
+    backdrop-filter: none;
+  }
+  48% {
+    opacity: 1;
+    background: var(--color-void);
+  }
+  70% {
+    opacity: 0.5;
+    background: var(--color-void);
+  }
+  86% {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The panel in its room. E-ink is reflective, so texture and room     */
+/* light *multiply* what is drawn: they show in the light ink and      */
+/* nearly vanish on the bare panel. Both cover canvas and copy alike.  */
+/* ------------------------------------------------------------------ */
+
+/* Pigment texture: fixed in the panel, never animated. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='-0.22 0 0 0 1.1 -0.22 0 0 0 1.1 -0.22 0 0 0 1.1 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='-0.12 0 0 0 1.06 -0.12 0 0 0 1.06 -0.12 0 0 0 1.06 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-size:
+    240px 240px,
+    900px 900px;
+}
+
+/*
+ * The room: one soft source somewhere up and to the left, falling off across
+ * the panel. Full strength at the lit corner, so the tokens hold there.
+ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  background:
+    radial-gradient(
+      140% 120% at 12% 0%,
+      rgb(255 253 249) 0%,
+      rgb(240 237 232) 45%,
+      rgb(205 203 199) 100%
+    );
+}
+
+/*
+ * The bezel, and the panel recessed beneath it: the top and left lips throw a
+ * soft shadow onto the screen, the lower lips catch a hairline of light.
+ */
+html::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 102;
+  pointer-events: none;
+  border: var(--ink-bezel) solid #242423;
+  box-shadow:
+    inset 0 9px 14px -7px rgb(0 0 0 / 0.6),
+    inset 8px 0 14px -8px rgb(0 0 0 / 0.5),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06),
+    inset -1px 0 0 rgb(255 255 255 / 0.05);
+}
+
+/* ------------------------------------------------------------------ */
+/* Minigame                                                            */
+/* ------------------------------------------------------------------ */
+
+@utility game-veil {
+  opacity: calc(1 - var(--game-veil, 0));
+}
+
+html.game-active .game-veil {
   pointer-events: none;
 }
 
@@ -156,103 +835,6 @@ html.game-active body {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-rim) 70%, transparent);
-}
-
-/* Hero brand cluster — fades in last, after the scene settles. */
-@utility hero-copy {
-  opacity: var(--hero-copy, 0);
-}
-
-@utility hero-wordmark {
-  font-family: var(--font-display);
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-indent: 0.14em;
-  text-transform: uppercase;
-}
-
-/**
- * Sticky nav keeps the crescent always on screen. Wordmark text only joins
- * once you leave the hero (where the big mark already owns the brand).
- */
-@utility header-mark {
-  opacity: var(--past-hero, 0);
-}
-
-/* Scroll cue: waits for hero copy, then leaves with the hero beat. */
-@utility hero-cue {
-  opacity: calc((1 - var(--past-hero, 0)) * var(--hero-copy, 0));
-}
-
-@keyframes hero-scroll-bounce {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(3px);
-  }
-}
-
-@utility hero-scroll-cue {
-  animation: hero-scroll-bounce 1.55s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-scroll-cue {
-    animation: none;
-  }
-}
-
-/**
- * Display type. Tight tracking at large sizes is most of what separates
- * expensive-looking typography from default-looking typography — grotesques are
- * spaced for body copy and always set too loose once they get big.
- */
-@utility display {
-  font-weight: 500;
-  letter-spacing: -0.035em;
-  line-height: 0.98;
-}
-
-@utility display-lg {
-  font-weight: 500;
-  letter-spacing: -0.04em;
-  line-height: 0.94;
-}
-
-/* Eyebrows, data, and anything that should read as instrumentation. */
-@utility label {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 400;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-regolith);
-}
-
-/* The wordmark: wide tracking is the whole effect, so it scales with the type. */
-@utility wordmark {
-  font-weight: 400;
-  letter-spacing: 0.34em;
-  text-transform: uppercase;
-}
-
-@keyframes hero-caret-blink {
-  0%,
-  45% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@utility hero-caret {
-  animation: hero-caret-blink 1.05s steps(1, end) infinite;
-  height: 0.95em;
-  vertical-align: text-bottom;
 }
 
 @keyframes loading-dot {
@@ -422,11 +1004,6 @@ html.game-active body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .hero-caret {
-    animation: none;
-    opacity: 0;
   }
 
   .achievement-chip,

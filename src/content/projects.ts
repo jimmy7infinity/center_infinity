@@ -6,6 +6,11 @@ import type { ServiceIconName } from '../ui/icons'
  */
 export type ProjectStatus = 'shipping' | 'beta' | 'demo' | 'planned'
 
+export type ProjectMedia =
+  | { kind: 'image'; src: string; alt: string }
+  /** Plays muted and looped, so keep it short and silent by design. */
+  | { kind: 'video'; src: string; alt: string; poster?: string }
+
 export type Project = {
   index: string
   name: string
@@ -22,8 +27,13 @@ export type Project = {
   stack: string[]
   status: ProjectStatus
   href?: string
-  /** Hero-frame capture of the live product, under /public/projects. */
+  /**
+   * Full-colour capture of the live product (1440×900), under /public/projects.
+   * Tops the project's colour screen.
+   */
   image?: string
+  /** Fills the colour screen under the capture, in order. */
+  media?: ProjectMedia[]
   /**
    * Reserved slot rather than shipped work. Rendered with a visibly provisional
    * treatment so it can't be mistaken for a real case study before it's filled.
@@ -37,11 +47,11 @@ export const projects: Project[] = [
     name: 'Center Infinity',
     tagline: 'The studio, as a living scene',
     description:
-      'This site. A scroll-locked WebGL field of nested crescents — the mark as a place you can move through — with real DOM copy, a flyer easter egg, and a warp that loops you home.',
+      'This site. A dark e-ink panel with the mark as a cel-shaded field of crescents on its cover — real type, a page refresh instead of a scroll, and a flyer easter egg behind the crescent.',
     audience: 'Anyone deciding whether we can build something they will remember.',
     role: 'Solo — scene, product, copy',
     highlights: [
-      'Scroll-locked 3D composition',
+      'WebGL printed as e-ink',
       'Dual-canvas debris over type',
       'This page is the proof',
     ],
@@ -170,6 +180,17 @@ export type Service = {
   detail: string
 }
 
+/** What a visitor can say they are building, on the contact page and its brief. */
+export const BUILD_OPTIONS = [
+  'Web app',
+  'Marketplace',
+  'Booking platform',
+  'AI product',
+  'Mobile app',
+  '3D & interactive',
+  'Something else',
+] as const
+
 export const services: Service[] = [
   {
     icon: 'stack',
@@ -193,6 +214,6 @@ export const services: Service[] = [
     icon: 'orbit',
     title: 'Interactive & 3D web',
     detail:
-      'Scenes that are the product — 60fps, scroll-locked, and designed to be remembered. This site is the working brief.',
+      'Scenes that are the product — 60fps and designed to be remembered. This site is the working brief.',
   },
 ]

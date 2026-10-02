@@ -22,24 +22,6 @@ const ICON_BASE = {
   'aria-hidden': true,
 }
 
-function StormBringerIcon({ className }: IconProps) {
-  return (
-    <svg {...ICON_BASE} className={className}>
-      <path d="M8 2.2c2.2 1.4 3.6 3.2 3.6 5.4S10.2 12.4 8 13.8C5.8 12.4 4.4 10.6 4.4 8.4S5.8 3.6 8 2.2Z" />
-      <path d="M8 4.4c1.2.8 2 1.8 2 3s-.8 2.2-2 3c-1.2-.8-2-1.8-2-3s.8-2.2 2-3Z" />
-      <circle cx="8" cy="8" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}
-
-function ZeusIcon({ className }: IconProps) {
-  return (
-    <svg {...ICON_BASE} className={className}>
-      <path d="M9.2 1.8 5.4 8.2h2.6L6.6 14.2 12.4 6.6H9.4L9.2 1.8Z" />
-    </svg>
-  )
-}
-
 function GamerIcon({ className }: IconProps) {
   return (
     <svg {...ICON_BASE} className={className}>
@@ -109,8 +91,6 @@ function KamikazeIcon({ className }: IconProps) {
 }
 
 const ICONS: Record<AchievementId, (props: IconProps) => ReactElement> = {
-  storm_bringer: StormBringerIcon,
-  zeus: ZeusIcon,
   gamer: GamerIcon,
   go_faster: GoFasterIcon,
   sharp_shooter: SharpShooterIcon,

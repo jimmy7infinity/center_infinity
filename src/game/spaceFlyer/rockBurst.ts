@@ -1,5 +1,14 @@
 import * as THREE from 'three'
 
+/**
+ * Debris rises *out of* the panel grey and settles back into it, rather
+ * than fading to black — black is darker than the panel and reads as a hole.
+ * Linear values; these materials encode on output.
+ */
+const PANEL_TONE = 0.032
+const SHARD_TONE = 0.5
+const DUST_TONE = 0.3
+
 const DEFAULT_MAX_BURSTS = 12
 const DEFAULT_PIECES = 12
 const DEFAULT_SPARKS = 16
@@ -341,10 +350,10 @@ export function createRockBurstSystem(
         _matrix.compose(piece.position, _quat, _scale)
         mesh.setMatrixAt(index, _matrix)
         const colors = mesh.instanceColor!.array as Float32Array
-        // Cool homepage / landing-page rock greys.
-        colors[index * 3] = 0.32 * fade
-        colors[index * 3 + 1] = 0.35 * fade
-        colors[index * 3 + 2] = 0.4 * fade
+        const tone = PANEL_TONE + (SHARD_TONE - PANEL_TONE) * fade
+        colors[index * 3] = tone
+        colors[index * 3 + 1] = tone
+        colors[index * 3 + 2] = tone
       }
 
       for (const spark of burst.sparks) {
@@ -368,9 +377,10 @@ export function createRockBurstSystem(
         _scale.setScalar(spark.scale * (0.35 + fade * 0.95))
         _matrix.compose(spark.position, _quat, _scale)
         sparkMesh.setMatrixAt(index, _matrix)
-        sparkColors[index * 3] = 0.55 * fade + 0.25
-        sparkColors[index * 3 + 1] = 0.75 * fade + 0.2
-        sparkColors[index * 3 + 2] = 1
+        const tone = 0.6 * fade + 0.2
+        sparkColors[index * 3] = tone
+        sparkColors[index * 3 + 1] = tone
+        sparkColors[index * 3 + 2] = tone
       }
 
       if (dustMesh && dustColors) {
@@ -397,9 +407,10 @@ export function createRockBurstSystem(
           _scale.setScalar(mote.scale * swell * (0.5 + fade * 0.7))
           _matrix.compose(mote.position, _quat, _scale)
           dustMesh.setMatrixAt(index, _matrix)
-          dustColors[index * 3] = 0.42 * fade
-          dustColors[index * 3 + 1] = 0.45 * fade
-          dustColors[index * 3 + 2] = 0.5 * fade
+          const tone = PANEL_TONE + (DUST_TONE - PANEL_TONE) * fade
+          dustColors[index * 3] = tone
+          dustColors[index * 3 + 1] = tone
+          dustColors[index * 3 + 2] = tone
         }
       }
 
