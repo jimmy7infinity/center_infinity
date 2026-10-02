@@ -58,14 +58,7 @@ export const projects: Project[] = [
     categories: ['Studio', '3D'],
     stack: ['React', 'Three.js', 'R3F', 'TypeScript', 'Vite'],
     status: 'shipping',
-    image: '/projects/center-infinity.jpg',
-    media: [
-      {
-        kind: 'image',
-        src: '/projects/center-infinity-live.jpg',
-        alt: 'The cover, with the crescent field',
-      },
-    ],
+    image: '/projects/center-infinity-live.jpg',
   },
   {
     index: '02',
@@ -84,9 +77,8 @@ export const projects: Project[] = [
     stack: ['Next.js', 'MongoDB', 'Cloudflare R2', 'Railway'],
     status: 'shipping',
     href: 'https://dispose.up.railway.app/?utm_source=centerinfinity',
-    image: '/projects/dispose.jpg',
+    image: '/projects/dispose-home.jpg',
     media: [
-      { kind: 'image', src: '/projects/dispose-home.jpg', alt: 'Dispose home' },
       { kind: 'image', src: '/projects/dispose-roll.jpg', alt: 'The roll is finite' },
     ],
   },
@@ -107,9 +99,8 @@ export const projects: Project[] = [
     stack: ['TypeScript', 'MongoDB', 'Gemini', 'Kimi', 'MCP'],
     status: 'beta',
     href: 'https://boost360.up.railway.app/?utm_source=centerinfinity',
-    image: '/projects/boost.jpg',
+    image: '/projects/boost-landing.jpg',
     media: [
-      { kind: 'image', src: '/projects/boost-landing.jpg', alt: 'Boost landing' },
       { kind: 'image', src: '/projects/boost-room.jpg', alt: 'A Boost room' },
     ],
   },
@@ -172,13 +163,8 @@ export const projects: Project[] = [
     stack: ['Next.js', 'FastAPI', 'MongoDB', 'Stripe', 'Cloudinary'],
     status: 'demo',
     href: 'https://lookinglocal.up.railway.app/?utm_source=centerinfinity',
-    image: '/projects/lookinglocal.jpg',
+    image: '/projects/lookinglocal-home.jpg',
     media: [
-      {
-        kind: 'image',
-        src: '/projects/lookinglocal-home.jpg',
-        alt: 'LookingLocal home',
-      },
       {
         kind: 'image',
         src: '/projects/lookinglocal-search.jpg',
