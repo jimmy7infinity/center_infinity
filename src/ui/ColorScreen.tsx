@@ -1,4 +1,9 @@
-import type { Project, ProjectMedia } from '../content/projects'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { projects, type Project, type ProjectMedia } from '../content/projects'
+import { BEATS, WORK_BEATS, type BeatId } from '../lib/beats'
+import { getPageIndex, subscribePage } from '../lib/pages'
+import { webglAvailable } from '../lib/quality'
+import { PlanetScreen } from './PlanetScreen'
 
 /** A still for the top of the screen when a project has no hero capture yet. */
 function firstStill(media: readonly ProjectMedia[]) {
@@ -48,6 +53,47 @@ function MediaTile({ media }: { media: ProjectMedia }) {
   }
 }
 
+const WIDE_QUERY = '(min-width: 1024px)'
+
+function useWideScreen() {
+  const [wide, setWide] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches,
+  )
+
+  useEffect(() => {
+    const media = window.matchMedia(WIDE_QUERY)
+    const onChange = () => setWide(media.matches)
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [])
+
+  return wide
+}
+
+function usePageIndex() {
+  return useSyncExternalStore(subscribePage, getPageIndex)
+}
+
+function isWorkBeat(beat: BeatId) {
+  return WORK_BEATS.includes(beat)
+}
+
+/**
+ * One canvas only: the docked screen on a wide window, the inline one on a
+ * narrow one, and only while this project is the page on screen.
+ */
+function useShowPlanets(project: Project, variant: 'docked' | 'inline') {
+  const index = usePageIndex()
+  const wide = useWideScreen()
+  const [canDraw] = useState(() => webglAvailable())
+  if (project.screen !== 'planets' || !canDraw) return false
+
+  const beat = BEATS[index]
+  if (!beat || !isWorkBeat(beat)) return false
+  if (projects[WORK_BEATS.indexOf(beat)] !== project) return false
+  return wide ? variant === 'docked' : variant === 'inline'
+}
+
 /**
  * A colour display set into the device beside the e-ink panel. It is lit, not
  * printed: it sits above the panel's texture and room light, and casts the same
@@ -63,20 +109,34 @@ export function ColorScreen({
   variant: 'docked' | 'inline'
 }) {
   const media = project.media ?? []
+  const planets = useShowPlanets(project, variant)
+  const [canDraw] = useState(() => webglAvailable())
+  const [spin] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  )
   // Narrow screens hide the gallery, so the first still stands in for a hero.
-  const hero = project.image ?? (variant === 'inline' ? firstStill(media) : undefined)
+  const hero =
+    project.screen === 'planets'
+      ? canDraw
+        ? undefined
+        : firstStill(media)
+      : (project.image ?? (variant === 'inline' ? firstStill(media) : undefined))
 
   return (
     <div className={`color-screen color-screen--${variant} emit-area`}>
       <div key={project.name} className="color-screen__content">
-        {hero ? (
+        {planets ? (
+          <PlanetScreen spin={spin} />
+        ) : hero ? (
           <img
             className="color-screen__shot"
             src={hero}
             alt={`${project.name} — live product`}
             draggable={false}
           />
-        ) : media.length > 0 ? (
+        ) : project.screen !== 'planets' && media.length > 0 ? (
           <div className="color-screen__shot color-screen__empty ink-label">Media</div>
         ) : null}
         <div

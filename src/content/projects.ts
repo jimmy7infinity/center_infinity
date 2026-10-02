@@ -28,10 +28,17 @@ export type Project = {
   status: ProjectStatus
   href?: string
   /**
-   * Full-colour capture of the live product (1440×900), under /public/projects.
-   * Tops the project's colour screen.
+   * Full-colour capture of the live product (a 1440×900 viewport), under
+   * /public/projects. Tops the project's colour screen.
    */
   image?: string
+  /**
+   * Draws the live crescents in the top slot. Used for this site, where a
+   * capture of the page the visitor is already on would only recurse.
+   */
+  screen?: 'planets'
+  /** Kept in the catalog, left off the display until it is ready to show. */
+  hidden?: boolean
   /** Fills the colour screen under the capture, in order. */
   media?: ProjectMedia[]
   /**
@@ -41,7 +48,7 @@ export type Project = {
   placeholder?: boolean
 }
 
-export const projects: Project[] = [
+const catalog: Project[] = [
   {
     index: '01',
     name: 'Center Infinity',
@@ -58,7 +65,14 @@ export const projects: Project[] = [
     categories: ['Studio', '3D'],
     stack: ['React', 'Three.js', 'R3F', 'TypeScript', 'Vite'],
     status: 'shipping',
-    image: '/projects/center-infinity-live.jpg',
+    screen: 'planets',
+    media: [
+      {
+        kind: 'image',
+        src: '/projects/center-infinity-poster.jpg',
+        alt: 'Nested crescents, printed in bone grey',
+      },
+    ],
   },
   {
     index: '02',
@@ -79,7 +93,7 @@ export const projects: Project[] = [
     href: 'https://dispose.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/dispose-home.jpg',
     media: [
-      { kind: 'image', src: '/projects/dispose-roll.jpg', alt: 'The roll is finite' },
+      { kind: 'image', src: '/projects/dispose-poster.jpg', alt: 'A gold camera iris in the dark' },
     ],
   },
   {
@@ -101,7 +115,7 @@ export const projects: Project[] = [
     href: 'https://boost360.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/boost-landing.jpg',
     media: [
-      { kind: 'image', src: '/projects/boost-room.jpg', alt: 'A Boost room' },
+      { kind: 'image', src: '/projects/boost-poster.jpg', alt: 'A green signal crossing the dark' },
     ],
   },
   {
@@ -121,6 +135,7 @@ export const projects: Project[] = [
     stack: ['TypeScript', 'Three.js', 'WebGPU', 'Unreal 5.8'],
     status: 'beta',
     image: '/projects/dynasty.jpg',
+    hidden: true,
   },
   {
     index: '05',
@@ -138,11 +153,13 @@ export const projects: Project[] = [
     categories: ['AI', 'Media'],
     stack: ['FastAPI', 'React', 'MongoDB', 'ComfyUI', 'SeedVR2'],
     status: 'beta',
+    href: 'https://studioeternity.up.railway.app/?utm_source=centerinfinity',
+    image: '/projects/studio-eternity-home.jpg',
     media: [
       {
         kind: 'image',
-        src: '/projects/studio-eternity.jpg',
-        alt: 'Studio Eternity',
+        src: '/projects/studio-eternity-poster.jpg',
+        alt: 'A road through the hills, held in a dark frame',
       },
     ],
   },
@@ -167,8 +184,8 @@ export const projects: Project[] = [
     media: [
       {
         kind: 'image',
-        src: '/projects/lookinglocal-search.jpg',
-        alt: 'Stays on Koh Phangan',
+        src: '/projects/lookinglocal-poster.jpg',
+        alt: 'A lamp on the bay at dusk',
       },
     ],
   },
@@ -190,8 +207,17 @@ export const projects: Project[] = [
     status: 'shipping',
     href: 'https://wlewandowska.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/wiktoria.jpg',
+    hidden: true,
   },
 ]
+
+/** On the display, in order. Hidden entries stay in the catalog. */
+export const projects: Project[] = catalog
+  .filter((project) => !project.hidden)
+  .map((project, order) => ({
+    ...project,
+    index: String(order + 1).padStart(2, '0'),
+  }))
 
 export type Service = {
   icon: ServiceIconName

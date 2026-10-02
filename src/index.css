@@ -478,10 +478,13 @@
   }
 }
 
-/* On a phone the page has to fit without scrolling: just the screenshot. */
+/* On a phone the page shows only the top capture, at its own size. */
 .color-screen--inline {
   margin-top: 1.75rem;
-  aspect-ratio: 16 / 10;
+}
+
+.color-screen--inline .color-screen__content {
+  height: auto;
 }
 
 .color-screen--inline .color-screen__gallery {
@@ -516,14 +519,28 @@
   }
 }
 
+/* The top capture is never cropped. On a short screen it scales down to fit. */
 .color-screen__shot {
   display: block;
   flex: none;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  max-height: 58%;
-  object-fit: cover;
-  object-position: top;
+  height: auto;
+  max-height: 68%;
+  object-fit: contain;
+  object-position: center;
+  background: #050506;
+}
+
+/* Same frame as a 1440×900 capture, so the crescents sit where a shot would. */
+.color-screen__planets {
+  position: relative;
+  aspect-ratio: 1440 / 900;
+}
+
+.color-screen__planets canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .color-screen__gallery {
@@ -548,12 +565,14 @@
   grid-row: span 2;
 }
 
+/* The banner underneath may crop. Keep the subject near the centre. */
 .color-screen__media {
   display: block;
   width: 100%;
   height: 100%;
   min-height: 0;
   object-fit: cover;
+  object-position: center;
 }
 
 .color-screen__empty {
@@ -835,32 +854,6 @@ html.game-active body {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-rim) 70%, transparent);
-}
-
-@keyframes loading-dot {
-  0%,
-  20% {
-    opacity: 0.2;
-  }
-  40% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.2;
-  }
-}
-
-.loading-dots span {
-  display: inline-block;
-  animation: loading-dot 1.2s ease-in-out infinite;
-}
-
-.loading-dots span:nth-child(2) {
-  animation-delay: 0.18s;
-}
-
-.loading-dots span:nth-child(3) {
-  animation-delay: 0.36s;
 }
 
 /* Easter-egg achievements — horizontal tray; drawers push following icons. */

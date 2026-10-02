@@ -9,6 +9,10 @@ function prefersReducedMotion() {
   )
 }
 
+export function webglAvailable() {
+  return hasWebGL()
+}
+
 function hasWebGL() {
   try {
     const canvas = document.createElement('canvas')

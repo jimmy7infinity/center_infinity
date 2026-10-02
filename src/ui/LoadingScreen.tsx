@@ -6,19 +6,6 @@ export function LoadingScreen({ visible }: { visible: boolean }) {
   if (!visible) return null
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-void"
-      aria-busy
-      role="status"
-    >
-      <p className="ink-label">
-        Loading
-        <span className="loading-dots" aria-hidden>
-          <span>.</span>
-          <span>.</span>
-          <span>.</span>
-        </span>
-      </p>
-    </div>
+    <div className="fixed inset-0 z-[80] bg-void" aria-busy aria-label="Loading" role="status" />
   )
 }

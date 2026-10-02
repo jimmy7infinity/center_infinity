@@ -2,15 +2,7 @@
  * The pages of the display, in order. One is shown at a time; the work pages
  * map one-to-one onto `projects`.
  */
-const WORK = [
-  'work-1',
-  'work-2',
-  'work-3',
-  'work-4',
-  'work-5',
-  'work-6',
-  'work-7',
-] as const
+const WORK = ['work-1', 'work-2', 'work-3', 'work-4', 'work-5'] as const
 
 export const BEATS = ['hero', 'services', ...WORK, 'contact'] as const
 

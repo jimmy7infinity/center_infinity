@@ -17,6 +17,12 @@ import { projects } from '../content/projects'
 import { BEATS, WORK_BEATS, type BeatId } from '../lib/beats'
 import { getPageIndex, subscribePage } from '../lib/pages'
 
+if (projects.length !== WORK_BEATS.length) {
+  throw new Error(
+    `Work pages (${WORK_BEATS.length}) and visible projects (${projects.length}) must match`,
+  )
+}
+
 function projectFor(beat: BeatId) {
   const project = projects[WORK_BEATS.indexOf(beat)]
   if (!project) throw new Error(`No project for page ${beat}`)
@@ -34,8 +40,6 @@ function pageTitle(beat: BeatId) {
     case 'work-3':
     case 'work-4':
     case 'work-5':
-    case 'work-6':
-    case 'work-7':
       return projectFor(beat).name
     case 'contact':
       return 'Contact'
@@ -59,8 +63,6 @@ function PageContent({ beat }: { beat: BeatId }) {
     case 'work-3':
     case 'work-4':
     case 'work-5':
-    case 'work-6':
-    case 'work-7':
       return <ProjectPage project={projectFor(beat)} />
     case 'contact':
       return <ContactPage />
