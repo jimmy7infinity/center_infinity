@@ -120,7 +120,7 @@ function ForegroundDebris({ tier }: { tier: QualityTier }) {
 
   return (
     <Canvas
-      className="pointer-events-none !fixed inset-0 z-40"
+      className="pointer-events-none !fixed inset-0 z-[102]"
       dpr={dprFor(tier)}
       gl={{
         antialias: tier === 'high',

@@ -460,7 +460,7 @@
 
 /* Fills the right half of the device, from status bar to page footer, out to
    the bezel. Above the panel's texture and room light (z 100) — it is lit, not
-   printed — and under the bezel (z 102). */
+   printed — and under the meteors (z 102) and the bezel (z 104). */
 .color-screen--docked {
   position: fixed;
   top: var(--ink-status-h);
@@ -519,7 +519,8 @@
   }
 }
 
-/* The top capture is never cropped. On a short screen it scales down to fit. */
+/* The top capture is never cropped. On a short screen it scales down to fit.
+   Wide windows swap in a 2:1 file, so this clamp does not leave side bars. */
 .color-screen__shot {
   display: block;
   flex: none;
@@ -529,18 +530,6 @@
   object-fit: contain;
   object-position: center;
   background: #050506;
-}
-
-/* Same frame as a 1440×900 capture, so the crescents sit where a shot would. */
-.color-screen__planets {
-  position: relative;
-  aspect-ratio: 1440 / 900;
-}
-
-.color-screen__planets canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
 }
 
 .color-screen__gallery {
@@ -630,7 +619,7 @@
 .emitter-light {
   position: fixed;
   inset: 0;
-  z-index: 103;
+  z-index: 105;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -752,7 +741,7 @@ html::after {
   content: '';
   position: fixed;
   inset: 0;
-  z-index: 102;
+  z-index: 104;
   pointer-events: none;
   border: var(--ink-bezel) solid #242423;
   box-shadow:
@@ -854,6 +843,32 @@ html.game-active body {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-rim) 70%, transparent);
+}
+
+@keyframes loading-dot {
+  0%,
+  20% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+}
+
+.loading-dots span {
+  display: inline-block;
+  animation: loading-dot 1.2s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.36s;
 }
 
 /* Easter-egg achievements — horizontal tray; drawers push following icons. */

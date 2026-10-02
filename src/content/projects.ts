@@ -1,4 +1,5 @@
 import type { ServiceIconName } from '../ui/icons'
+import { BEATS, WORK_BEATS } from '../lib/beats'
 
 /**
  * Stage of the work, not a free-text badge. A union keeps the status colour and
@@ -28,13 +29,15 @@ export type Project = {
   status: ProjectStatus
   href?: string
   /**
-   * Full-colour capture of the live product (a 1440×900 viewport), under
-   * /public/projects. Tops the project's colour screen.
+   * Full-colour capture of the live product, under /public/projects.
+   * `image` is a 1440×900 viewport. `imageWide` is a 1600×800 viewport, used
+   * when the window is wide enough that the 16:10 shot would letterbox.
    */
   image?: string
+  imageWide?: string
   /**
-   * Draws the live crescents in the top slot. Used for this site, where a
-   * capture of the page the visitor is already on would only recurse.
+   * No colour screen and no stills. On a wide window the cover's shells move
+   * into the right half. A narrow window shows the copy only.
    */
   screen?: 'planets'
   /** Kept in the catalog, left off the display until it is ready to show. */
@@ -66,13 +69,6 @@ const catalog: Project[] = [
     stack: ['React', 'Three.js', 'R3F', 'TypeScript', 'Vite'],
     status: 'shipping',
     screen: 'planets',
-    media: [
-      {
-        kind: 'image',
-        src: '/projects/center-infinity-poster.jpg',
-        alt: 'Nested crescents, printed in bone grey',
-      },
-    ],
   },
   {
     index: '02',
@@ -92,6 +88,7 @@ const catalog: Project[] = [
     status: 'shipping',
     href: 'https://dispose.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/dispose-home.jpg',
+    imageWide: '/projects/dispose-home-wide.jpg',
     media: [
       { kind: 'image', src: '/projects/dispose-poster.jpg', alt: 'A gold camera iris in the dark' },
     ],
@@ -114,6 +111,7 @@ const catalog: Project[] = [
     status: 'beta',
     href: 'https://boost360.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/boost-landing.jpg',
+    imageWide: '/projects/boost-landing-wide.jpg',
     media: [
       { kind: 'image', src: '/projects/boost-poster.jpg', alt: 'A green signal crossing the dark' },
     ],
@@ -155,6 +153,7 @@ const catalog: Project[] = [
     status: 'beta',
     href: 'https://studioeternity.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/studio-eternity-home.jpg',
+    imageWide: '/projects/studio-eternity-home-wide.jpg',
     media: [
       {
         kind: 'image',
@@ -181,6 +180,7 @@ const catalog: Project[] = [
     status: 'demo',
     href: 'https://lookinglocal.up.railway.app/?utm_source=centerinfinity',
     image: '/projects/lookinglocal-home.jpg',
+    imageWide: '/projects/lookinglocal-home-wide.jpg',
     media: [
       {
         kind: 'image',
@@ -218,6 +218,15 @@ export const projects: Project[] = catalog
     ...project,
     index: String(order + 1).padStart(2, '0'),
   }))
+
+/** True while the Center Infinity page is the one on screen. */
+export function showsScenePlanets(pageIndex: number) {
+  const beat = BEATS[pageIndex]
+  if (beat === undefined) return false
+  const slot = WORK_BEATS.indexOf(beat)
+  if (slot < 0) return false
+  return projects[slot]?.screen === 'planets'
+}
 
 export type Service = {
   icon: ServiceIconName

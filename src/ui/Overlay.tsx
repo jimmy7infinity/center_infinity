@@ -127,7 +127,7 @@ export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
   return (
     <>
       <InkPhotoFilter />
-      {/* Copy sits under the debris canvas (z-40) so comets cross the type. */}
+      {/* Copy sits under the debris canvas so comets cross the type and the project images. */}
       <main className="game-veil fixed inset-0 z-10">
         {BEATS.map((beat, i) => (
           <Page
@@ -141,7 +141,7 @@ export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
       <DockedColorScreen beat={BEATS[index]} />
       {/* Chrome above the debris canvas so controls stay clickable. */}
       {showChrome ? (
-        <div className="game-veil pointer-events-none fixed inset-0 z-[97]">
+        <div className="game-veil pointer-events-none fixed inset-0 z-[103]">
           <StatusBar title={PAGE_TITLES[index]} />
           {BEATS[index] === 'contact' ? <ContactFooter /> : null}
           <PageNav index={index} titles={PAGE_TITLES} />

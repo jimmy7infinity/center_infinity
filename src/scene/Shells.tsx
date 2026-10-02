@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { showsScenePlanets } from '../content/projects'
 import { pageState, subscribePage } from '../lib/pages'
 import { publishCamera } from '../lib/cameraBridge'
 import { isGameActive } from '../lib/gameMode'
@@ -13,6 +14,7 @@ import {
 import {
   SHELL_MOTIONS,
   HERO_CAMERA,
+  panelFit,
   resolveShellPose,
   resolveShellRadius,
   type ShellMotion,
@@ -142,6 +144,8 @@ function Shell({ motion }: { motion: ShellMotion }) {
   const hasInitialised = useRef(false)
   /** Damped camera-crossing fade, kept separate from the instant page switch. */
   const surfaceOpacity = useRef(0)
+  /** Snaps the shell when the page changes where it lives, during the blank refresh. */
+  const placement = useRef<'hero' | 'panel' | 'hidden'>('hidden')
   const lightningCharge = useRef(0)
   /** Seconds since the current strike began (draw → hold → fade), or -1. */
   const lightningAge = useRef(-1)
@@ -203,12 +207,20 @@ function Shell({ motion }: { motion: ShellMotion }) {
     if (!group || !mesh) return
 
     const aspect = Math.max(0.2, state.size.width / state.size.height)
+    // The real shells, in the right-hand panel. Narrow pages have no panel.
+    const inPanel =
+      state.size.width >= 1024 &&
+      !isGameActive() &&
+      showsScenePlanets(pageState.index)
+    const fit = inPanel ? panelFit(aspect) : 1
     // Recomputed every frame rather than on a resize event so the geometry stays
     // a unit sphere and reframing costs nothing but a multiply.
-    const radius = resolveShellRadius(motion, aspect)
+    const radius = resolveShellRadius(motion, aspect) * fit
     mesh.scale.setScalar(radius)
 
-    resolveShellPose(motion, aspect, sampleOut)
+    resolveShellPose(motion, aspect, sampleOut, inPanel ? 'panel' : 'hero')
+    if (fit !== 1) sampleOut.position.y *= fit
+    const where = inPanel ? 'panel' : pageState.index === 0 || isGameActive() ? 'hero' : 'hidden'
 
     const intensityTarget = sampleOut.intensity * INTENSITY_SCALE
     const distanceToSurface =
@@ -216,12 +228,14 @@ function Shell({ motion }: { motion: ShellMotion }) {
     // Opaque outside the sphere; fades only once the camera crosses the surface.
     const surfaceTarget = THREE.MathUtils.smoothstep(distanceToSurface, -2, 0)
 
-    if (!hasInitialised.current) {
+    const jumped = placement.current !== where
+    if (!hasInitialised.current || jumped) {
       group.position.copy(sampleOut.position)
       uniforms.uLightDir.value.copy(sampleOut.lightDir).normalize()
       uniforms.uIntensity.value = intensityTarget
       surfaceOpacity.current = surfaceTarget
       hasInitialised.current = true
+      placement.current = where
     } else {
       group.position.x = THREE.MathUtils.damp(
         group.position.x,
@@ -277,11 +291,12 @@ function Shell({ motion }: { motion: ShellMotion }) {
       )
     }
 
-    // The planets belong to the cover page. Switched undamped: page turns swap
-    // content while the panel is blank, and an unlit shell still writes depth,
-    // so a lingering fade would punch a moon-shaped hole in the stars.
-    const onHero = pageState.index === 0 || isGameActive() ? 1 : 0
-    uniforms.uOpacity.value = surfaceOpacity.current * onHero
+    // Cover, and the Center Infinity page where they sit in the right-hand panel.
+    // Switched undamped: page turns swap content while the panel is blank, and
+    // an unlit shell still writes depth, so a lingering fade would punch a
+    // moon-shaped hole in the stars.
+    const shown = pageState.index === 0 || isGameActive() || inPanel ? 1 : 0
+    uniforms.uOpacity.value = surfaceOpacity.current * shown
 
     registerShellProbe(
       motion.id,
