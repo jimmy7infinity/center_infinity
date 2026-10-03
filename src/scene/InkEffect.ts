@@ -91,6 +91,9 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   float pigment = pow(clamp(stepped, 0.0, 1.0), uShadowCurve);
 
   vec3 panel = mix(uSurface, uLight, clamp(pigment + ghost, 0.0, 1.0));
+
+  // The whole planet, including lightning, prints as ink. Warm color stays on
+  // the foreground canvas (player meteors), which never reaches this pass.
   outputColor = vec4(srgbToLinear(panel), inputColor.a);
 }
 `

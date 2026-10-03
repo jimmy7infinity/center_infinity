@@ -25,14 +25,18 @@ export type RockBurstOptions = {
   life?: number
   /** Radial blast + gravity + denser grit. */
   disintegrate?: boolean
+  /** Homepage hits: shards and sparks burn, then cool. */
+  fire?: boolean
 }
+
+export type BurstStyle = 'rock' | 'giant'
 
 export type RockBurstSystem = {
   pieceMeshes: THREE.InstancedMesh[]
   sparkMesh: THREE.InstancedMesh
   dustMesh: THREE.InstancedMesh | null
   update: (dt: number) => void
-  spawn: (origin: THREE.Vector3, size: number) => void
+  spawn: (origin: THREE.Vector3, size: number, style?: BurstStyle) => void
   dispose: () => void
 }
 
@@ -133,6 +137,7 @@ export function createRockBurstSystem(
   options: RockBurstOptions = {},
 ): RockBurstSystem {
   const disintegrate = options.disintegrate === true
+  const fire = options.fire === true
   const maxBursts = options.maxBursts ?? DEFAULT_MAX_BURSTS
   const piecesPerBurst =
     options.piecesPerBurst ?? (disintegrate ? 28 : DEFAULT_PIECES)
@@ -218,24 +223,32 @@ export function createRockBurstSystem(
   // Per-variant write cursors rebuilt each frame.
   const variantWrite = new Int32Array(SHARD_VARIANTS)
 
-  const spawn = (origin: THREE.Vector3, size: number) => {
+  const spawn = (origin: THREE.Vector3, size: number, style: BurstStyle = 'rock') => {
     const burst = bursts.find((entry) => !entry.alive) ?? bursts[0]
     burst.alive = true
+    // A giant fills its own volume with small grit. Scaling the pebble
+    // burst up with the body just looks like a bigger version of the same pop.
+    const giant = style === 'giant'
 
     for (let i = 0; i < burst.pieces.length; i++) {
       const piece = burst.pieces[i]
       piece.alive = true
       piece.variant = i % SHARD_VARIANTS
-      piece.maxLife = burstLife * (0.65 + Math.random() * 0.55)
+      piece.maxLife = burstLife * (giant ? 0.4 + Math.random() * 0.35 : 0.65 + Math.random() * 0.55)
       piece.life = piece.maxLife
       _dir
         .set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
         .normalize()
       piece.position
         .copy(origin)
-        .addScaledVector(_dir, size * (disintegrate ? 0.35 : 0.18) * Math.random())
+        .addScaledVector(
+          _dir,
+          size * (giant ? 0.2 + Math.random() * 0.8 : (disintegrate ? 0.35 : 0.18) * Math.random()),
+        )
 
-      if (disintegrate) {
+      if (giant) {
+        piece.velocity.copy(_dir).multiplyScalar(size * (2.8 + Math.random() * 3.4))
+      } else if (disintegrate) {
         // Speeds scale with rock size so the cloud stays boulder-local.
         _jitter.set(
           (Math.random() - 0.5) * size * 2.2,
@@ -265,48 +278,59 @@ export function createRockBurstSystem(
         Math.random() * Math.PI * 2,
         Math.random() * Math.PI * 2,
       )
-      piece.scale = size * (disintegrate ? 0.18 + Math.random() * 0.32 : 0.16 + Math.random() * 0.32)
+      piece.scale = giant
+        ? 0.012 + Math.random() * 0.018
+        : size * (disintegrate ? 0.18 + Math.random() * 0.32 : 0.16 + Math.random() * 0.32)
     }
 
     for (const spark of burst.sparks) {
       spark.alive = true
       spark.variant = 0
-      spark.maxLife = burstLife * (0.28 + Math.random() * 0.4)
+      spark.maxLife = burstLife * (giant ? 0.22 + Math.random() * 0.28 : 0.28 + Math.random() * 0.4)
       spark.life = spark.maxLife
       spark.position.copy(origin)
       _dir
         .set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
         .normalize()
+      if (giant) {
+        spark.position.addScaledVector(_dir, size * Math.random() * 0.55)
+      }
       spark.velocity
         .copy(_dir)
         .multiplyScalar(
-          disintegrate
-            ? size * (14 + Math.random() * 22)
-            : 3 + Math.random() * 6,
+          giant
+            ? size * (6 + Math.random() * 8)
+            : disintegrate
+              ? size * (14 + Math.random() * 22)
+              : 3 + Math.random() * 6,
         )
       spark.tumble.set(0, 0, 0)
       spark.spin.set(0, 0, 0)
-      spark.scale = size * (disintegrate ? 0.04 + Math.random() * 0.06 : 0.025 + Math.random() * 0.05)
+      spark.scale = giant
+        ? 0.005 + Math.random() * 0.008
+        : size * (disintegrate ? 0.04 + Math.random() * 0.06 : 0.025 + Math.random() * 0.05)
     }
 
     for (const mote of burst.dust) {
       mote.alive = true
       mote.variant = 0
-      mote.maxLife = burstLife * (0.85 + Math.random() * 0.7)
+      mote.maxLife = burstLife * (giant ? 1.15 + Math.random() * 0.55 : 0.85 + Math.random() * 0.7)
       mote.life = mote.maxLife
       _dir
         .set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
         .normalize()
       mote.position
         .copy(origin)
-        .addScaledVector(_dir, size * 0.4 * Math.random())
+        .addScaledVector(_dir, size * (giant ? 0.15 + Math.random() * 0.75 : 0.4 * Math.random()))
       mote.velocity
         .copy(_dir)
-        .multiplyScalar(size * (2.2 + Math.random() * 4.5))
-      mote.velocity.y += size * (Math.random() - 0.35) * 1.2
+        .multiplyScalar(size * (giant ? 1.1 + Math.random() * 1.8 : 2.2 + Math.random() * 4.5))
+      mote.velocity.y += size * (Math.random() - 0.35) * (giant ? 0.4 : 1.2)
       mote.tumble.set(0, 0, 0)
       mote.spin.set(0, 0, 0)
-      mote.scale = size * (0.04 + Math.random() * 0.07)
+      mote.scale = giant
+        ? 0.008 + Math.random() * 0.014
+        : size * (0.04 + Math.random() * 0.07)
     }
   }
 
@@ -351,9 +375,16 @@ export function createRockBurstSystem(
         mesh.setMatrixAt(index, _matrix)
         const colors = mesh.instanceColor!.array as Float32Array
         const tone = PANEL_TONE + (SHARD_TONE - PANEL_TONE) * fade
-        colors[index * 3] = tone
-        colors[index * 3 + 1] = tone
-        colors[index * 3 + 2] = tone
+        if (fire) {
+          const ember = fade * fade
+          colors[index * 3] = tone * (1 - ember) + (0.55 + 0.45 * fade) * ember
+          colors[index * 3 + 1] = tone * (1 - ember) + (0.08 + 0.42 * ember) * ember
+          colors[index * 3 + 2] = tone * (1 - ember) + 0.02 * ember
+        } else {
+          colors[index * 3] = tone
+          colors[index * 3 + 1] = tone
+          colors[index * 3 + 2] = tone
+        }
       }
 
       for (const spark of burst.sparks) {
@@ -377,10 +408,16 @@ export function createRockBurstSystem(
         _scale.setScalar(spark.scale * (0.35 + fade * 0.95))
         _matrix.compose(spark.position, _quat, _scale)
         sparkMesh.setMatrixAt(index, _matrix)
-        const tone = 0.6 * fade + 0.2
-        sparkColors[index * 3] = tone
-        sparkColors[index * 3 + 1] = tone
-        sparkColors[index * 3 + 2] = tone
+        if (fire) {
+          sparkColors[index * 3] = 0.55 + fade * 0.6
+          sparkColors[index * 3 + 1] = fade * fade * 0.9
+          sparkColors[index * 3 + 2] = fade * fade * fade * 0.12
+        } else {
+          const tone = 0.6 * fade + 0.2
+          sparkColors[index * 3] = tone
+          sparkColors[index * 3 + 1] = tone
+          sparkColors[index * 3 + 2] = tone
+        }
       }
 
       if (dustMesh && dustColors) {
@@ -407,10 +444,17 @@ export function createRockBurstSystem(
           _scale.setScalar(mote.scale * swell * (0.5 + fade * 0.7))
           _matrix.compose(mote.position, _quat, _scale)
           dustMesh.setMatrixAt(index, _matrix)
-          const tone = PANEL_TONE + (DUST_TONE - PANEL_TONE) * fade
-          dustColors[index * 3] = tone
-          dustColors[index * 3 + 1] = tone
-          dustColors[index * 3 + 2] = tone
+          if (fire) {
+            const ember = fade * fade
+            dustColors[index * 3] = 0.15 + ember * 0.7
+            dustColors[index * 3 + 1] = ember * 0.28
+            dustColors[index * 3 + 2] = ember * 0.03
+          } else {
+            const tone = PANEL_TONE + (DUST_TONE - PANEL_TONE) * fade
+            dustColors[index * 3] = tone
+            dustColors[index * 3 + 1] = tone
+            dustColors[index * 3 + 2] = tone
+          }
         }
       }
 

@@ -8,10 +8,10 @@ import {
 } from './icons'
 import { BriefDialog } from './BriefDialog'
 import { ColorScreen } from './ColorScreen'
-import { Emitter, StatusLight } from './StatusLight'
+import { Emitter } from './StatusLight'
+import { ProjectDossier } from './ProjectDossier'
 import {
   BUILD_OPTIONS,
-  projects,
   services,
   type Project,
 } from '../content/projects'
@@ -59,57 +59,20 @@ export function StudioPage() {
   )
 }
 
-export function ProjectPage({ project }: { project: Project }) {
+export function ProjectPage({
+  project,
+  active,
+}: {
+  project: Project
+  active: boolean
+}) {
   return (
     <div
       className={`ink-page__inner ink-page__inner--split ${
-        project.placeholder ? 'opacity-60' : ''
-      }`}
+        project.technical ? 'ink-page__inner--dossier' : ''
+      } ${project.placeholder ? 'opacity-60' : ''}`}
     >
-      <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2">
-        <span className="ink-label tabular-nums">
-          Work {project.index} / {String(projects.length).padStart(2, '0')}
-        </span>
-        <StatusLight status={project.status} />
-      </div>
-
-      <h2 className="ink-title">{project.name}</h2>
-      <p className="ink-lede mt-2">{project.tagline}</p>
-      <p className="ink-label mt-4 normal-case tracking-[0.04em]">
-        {project.role}
-      </p>
-
-      <p className="ink-body mt-6 max-w-xl">{project.description}</p>
-
-      {project.highlights.length > 0 && (
-        <ul className="mt-6 border-t border-rule">
-          {project.highlights.map((highlight) => (
-            <li
-              key={highlight}
-              className="border-b border-rule py-2.5 text-[0.8125rem] text-rim"
-            >
-              {highlight}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p className="ink-label mt-5 normal-case tracking-[0.04em]">
-        {project.stack.join('  ·  ')}
-      </p>
-
-      {project.href && (
-        <a
-          href={project.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ink-link ink-label mt-6 inline-flex items-center gap-2.5 text-rim"
-        >
-          View project
-          <ArrowIcon className="h-3.5 w-3.5" />
-        </a>
-      )}
-
+      <ProjectDossier project={project} active={active} />
       <ColorScreen project={project} variant="inline" />
     </div>
   )

@@ -10,7 +10,15 @@ import {
 } from './driftingRockBridge'
 import { createShellMaterial } from './shellMaterial'
 
-const POOL_SIZE = 5
+const DRIFT_COUNT = 5
+const GIANT_COUNT = 1
+const SHARD_COUNT = 11
+const SHOWER_COUNT = 18
+const POOL_SIZE = DRIFT_COUNT + GIANT_COUNT + SHARD_COUNT + SHOWER_COUNT
+const GEO_COUNT = 6
+
+/** One giant and one shower per five minutes, offset so they don't arrive together. */
+const RARE_INTERVAL = 5 * 60
 
 /**
  * Distance from the camera, in world units. A single near band keeps debris
@@ -50,7 +58,10 @@ const _ac = new THREE.Vector3()
 const _closest = new THREE.Vector3()
 const _burstOrigin = new THREE.Vector3()
 
+type RockKind = 'drift' | 'giant' | 'shard' | 'shower'
+
 type Rock = {
+  kind: RockKind
   active: boolean
   progress: number
   duration: number
@@ -192,8 +203,16 @@ export function createRockGeometry(seed: number): THREE.BufferGeometry {
   return geometry
 }
 
-function createRock(): Rock {
+function kindForIndex(index: number): RockKind {
+  if (index < DRIFT_COUNT) return 'drift'
+  if (index < DRIFT_COUNT + GIANT_COUNT) return 'giant'
+  if (index < DRIFT_COUNT + GIANT_COUNT + SHARD_COUNT) return 'shard'
+  return 'shower'
+}
+
+function createRock(index: number): Rock {
   return {
+    kind: kindForIndex(index),
     active: false,
     progress: 0,
     duration: 1,
@@ -220,58 +239,182 @@ function pickDistance(): number {
 
 const spawnAnchor = new THREE.Vector3()
 const travelDirection = new THREE.Vector3()
+const _memberAnchor = new THREE.Vector3()
+const _camRight = new THREE.Vector3()
+const _camUp = new THREE.Vector3()
+const _travel = new THREE.Vector3()
+const _perp = new THREE.Vector3()
+const _bin = new THREE.Vector3()
+const _shardDir = new THREE.Vector3()
+const WORLD_UP = new THREE.Vector3(0, 1, 0)
+const WORLD_X = new THREE.Vector3(1, 0, 0)
 
-function activateRock(rock: Rock, camera: THREE.PerspectiveCamera) {
-  const distance = pickDistance()
+/**
+ * Points `travelDirection` across the view and parks `spawnAnchor` on screen.
+ * Both are in world space. Callers then push the path off either edge.
+ */
+function aimTransit(
+  camera: THREE.PerspectiveCamera,
+  distance: number,
+  fx: number,
+  fy: number,
+  pitch: number,
+  zJitter: number,
+) {
   const frameHeight = 2 * distance * Math.tan((camera.fov * Math.PI) / 360)
   const frameWidth = frameHeight * camera.aspect
-
-  // Biased to the upper band. The copy sits below on every breakpoint, and on
-  // portrait it takes the whole lower half.
-  const fx = 0.06 + Math.random() * 0.88
-  const fy =
-    Math.random() < 0.82 ? 0.02 + Math.random() * 0.46 : 0.48 + Math.random() * 0.28
-
-  // Mostly across the frame, with enough z to keep them off a shared plane.
-  const pitch = (Math.random() - 0.5) * 0.9
   travelDirection
     .set(
       Math.cos(pitch) * (Math.random() < 0.5 ? 1 : -1),
       Math.sin(pitch),
-      (Math.random() - 0.5) * 0.16,
+      (Math.random() - 0.5) * zJitter,
     )
     .transformDirection(camera.matrixWorld)
-
   // Resolved through the camera's own matrix rather than an assumed pose. The
   // rig translates and turns across the beats, and at these distances a fixed
   // reference puts near rocks outside the frame entirely.
   spawnAnchor.set((fx - 0.5) * frameWidth, (0.5 - fy) * frameHeight, -distance)
   camera.localToWorld(spawnAnchor)
+  return { frameWidth, frameHeight }
+}
 
-  // Wide enough that both ends sit off-frame, so rocks enter and leave rather
-  // than appearing and vanishing mid-shot.
-  const span = frameWidth * 2.4
-  rock.start.copy(spawnAnchor).addScaledVector(travelDirection, -span * 0.5)
-  rock.end.copy(spawnAnchor).addScaledVector(travelDirection, span * 0.5)
+function layPath(
+  rock: Rock,
+  anchor: THREE.Vector3,
+  direction: THREE.Vector3,
+  span: number,
+  duration: number,
+) {
+  rock.start.copy(anchor).addScaledVector(direction, -span * 0.5)
+  rock.end.copy(anchor).addScaledVector(direction, span * 0.5)
   rock.progress = 0
+  rock.duration = duration
   rock.active = true
-  // Near rocks cross faster. That parallax is what sells the depth now that
-  // they share space with the shells instead of sitting behind them.
-  rock.duration = (16 + Math.random() * 12) * (0.5 + distance / 26)
-  // Scaled with depth so a rock stays rock-sized on screen at any distance
-  // instead of becoming a second moon up close.
-  rock.scale = distance * (0.0045 + Math.random() * 0.010)
+}
 
+function setTumble(rock: Rock, rate: number) {
   rock.tumbleSpeed.set(
-    (Math.random() - 0.5) * 0.16,
-    (Math.random() - 0.5) * 0.16,
-    (Math.random() - 0.5) * 0.16,
+    (Math.random() - 0.5) * rate,
+    (Math.random() - 0.5) * rate,
+    (Math.random() - 0.5) * rate,
   )
   rock.baseRotation.set(
     Math.random() * Math.PI * 2,
     Math.random() * Math.PI * 2,
     Math.random() * Math.PI * 2,
   )
+}
+
+function activateRock(rock: Rock, camera: THREE.PerspectiveCamera) {
+  const distance = pickDistance()
+  // Biased to the upper band. The copy sits below on every breakpoint, and on
+  // portrait it takes the whole lower half.
+  const fx = 0.06 + Math.random() * 0.88
+  const fy =
+    Math.random() < 0.82 ? 0.02 + Math.random() * 0.46 : 0.48 + Math.random() * 0.28
+  const pitch = (Math.random() - 0.5) * 0.9
+  const { frameWidth } = aimTransit(camera, distance, fx, fy, pitch, 0.16)
+  // Wide enough that both ends sit off-frame, so rocks enter and leave rather
+  // than appearing and vanishing mid-shot.
+  const span = frameWidth * 2.4
+  // Near rocks cross faster. That parallax is what sells the depth now that
+  // they share space with the shells instead of sitting behind them.
+  layPath(
+    rock,
+    spawnAnchor,
+    travelDirection,
+    span,
+    (16 + Math.random() * 12) * (0.5 + distance / 26),
+  )
+  // Scaled with depth so a rock stays rock-sized on screen at any distance
+  // instead of becoming a second moon up close.
+  rock.scale = distance * (0.0045 + Math.random() * 0.010)
+  setTumble(rock, 0.16)
+}
+
+/** A slow hulk. Same crossing, several times the size, a fraction of the speed. */
+function activateGiant(rock: Rock, camera: THREE.PerspectiveCamera) {
+  const distance = pickDistance()
+  const fx = 0.12 + Math.random() * 0.76
+  const fy =
+    Math.random() < 0.75 ? 0.08 + Math.random() * 0.4 : 0.48 + Math.random() * 0.2
+  const pitch = (Math.random() - 0.5) * 0.45
+  const { frameWidth } = aimTransit(camera, distance, fx, fy, pitch, 0.08)
+  layPath(
+    rock,
+    spawnAnchor,
+    travelDirection,
+    frameWidth * 2.6,
+    (78 + Math.random() * 36) * (0.55 + distance / 30),
+  )
+  rock.scale = distance * (0.08 + Math.random() * 0.028)
+  setTumble(rock, 0.05)
+}
+
+/**
+ * A meteor shower: one direction, a loose cloud of rocks crossing together.
+ * Returns false when too few slots are free to read as a cluster.
+ */
+function activateShower(slots: Rock[], camera: THREE.PerspectiveCamera) {
+  const open = slots.filter((rock) => !rock.active)
+  if (open.length < 12) return false
+  const distance = pickDistance()
+  const fx = 0.2 + Math.random() * 0.6
+  const fy = 0.06 + Math.random() * 0.4
+  const pitch = (Math.random() - 0.5) * 0.35
+  const { frameWidth, frameHeight } = aimTransit(camera, distance, fx, fy, pitch, 0.05)
+  _camRight.setFromMatrixColumn(camera.matrixWorld, 0)
+  _camUp.setFromMatrixColumn(camera.matrixWorld, 1)
+  const span = frameWidth * 2.4
+  const baseDuration = (14 + Math.random() * 8) * (0.5 + distance / 26)
+  const count = Math.min(open.length, 14 + Math.floor(Math.random() * 5))
+  for (let i = 0; i < count; i++) {
+    const rock = open[i]
+    _memberAnchor
+      .copy(spawnAnchor)
+      .addScaledVector(_camRight, (Math.random() - 0.5) * frameWidth * 0.46)
+      .addScaledVector(_camUp, (Math.random() - 0.5) * frameHeight * 0.32)
+      .addScaledVector(travelDirection, (Math.random() - 0.5) * frameWidth * 0.18)
+    layPath(rock, _memberAnchor, travelDirection, span, baseDuration * (0.9 + Math.random() * 0.2))
+    rock.scale = distance * (0.0038 + Math.random() * 0.006)
+    rock.progress = Math.random() * 0.05
+    setTumble(rock, 0.16)
+  }
+  return true
+}
+
+/** The giant's pieces. They keep going, fanned out and quicker than the hulk. */
+function spawnShards(parent: Rock, rocks: Rock[]) {
+  _travel.subVectors(parent.end, parent.start)
+  const parentSpeed = _travel.length() / Math.max(parent.duration, 0.001)
+  if (_travel.lengthSq() < 1e-8) _travel.set(1, 0, 0)
+  else _travel.normalize()
+  _perp.crossVectors(_travel, WORLD_UP)
+  if (_perp.lengthSq() < 1e-6) _perp.crossVectors(_travel, WORLD_X)
+  _perp.normalize()
+  _bin.crossVectors(_travel, _perp).normalize()
+
+  const open = rocks.filter((rock) => rock.kind === 'shard' && !rock.active)
+  const count = Math.min(open.length, 8 + Math.floor(Math.random() * 3))
+  for (let i = 0; i < count; i++) {
+    const rock = open[i]
+    const yaw = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.35
+    const spread = 0.32 + Math.random() * 0.38
+    _shardDir
+      .copy(_travel)
+      .addScaledVector(_perp, Math.cos(yaw) * spread)
+      .addScaledVector(_bin, Math.sin(yaw) * spread)
+      .normalize()
+    const flight = 8 + Math.random() * 5
+    const span = parentSpeed * (4.5 + Math.random() * 3) * flight
+    rock.start.copy(parent.position).addScaledVector(_shardDir, parent.scale * 1.6)
+    rock.end.copy(rock.start).addScaledVector(_shardDir, Math.max(span, parent.scale * 18))
+    rock.progress = 0
+    rock.duration = flight
+    rock.scale = parent.scale * (0.18 + Math.random() * 0.14)
+    rock.active = true
+    setTumble(rock, 0.85)
+  }
 }
 
 /** Nearer positive ray–sphere hit, or -1. */
@@ -312,7 +455,10 @@ function segmentHitsSphere(
 }
 
 function hitRadiusFor(rock: Rock, geoRadius: number) {
-  return Math.max(rock.scale * geoRadius * 2.4, MIN_HIT_RADIUS)
+  // The giant is a large, slow target. The same pad as the pebbles leaves
+  // most of its body as a miss.
+  const reach = rock.kind === 'giant' ? 5 : 2.4
+  return Math.max(rock.scale * geoRadius * reach, MIN_HIT_RADIUS)
 }
 
 /** Sparse tumbling debris, lit by the same terminator model as the shells. */
@@ -321,14 +467,16 @@ export function DriftingRocks() {
     Array.from({ length: POOL_SIZE }, () => null),
   )
   const rocksRef = useRef<Rock[]>(
-    Array.from({ length: POOL_SIZE }, () => createRock()),
+    Array.from({ length: POOL_SIZE }, (_, index) => createRock(index)),
   )
   const spawnTimerRef = useRef(2)
+  const giantTimerRef = useRef(RARE_INTERVAL)
+  const showerTimerRef = useRef(RARE_INTERVAL * 0.5)
   const geoRadii = useRef<number[]>(Array.from({ length: POOL_SIZE }, () => 1))
 
   const geometries = useMemo(
     () =>
-      Array.from({ length: POOL_SIZE }, (_, index) =>
+      Array.from({ length: GEO_COUNT }, (_, index) =>
         createRockGeometry(0x9e37 + index * 7919),
       ),
     [],
@@ -358,14 +506,16 @@ export function DriftingRocks() {
     () =>
       createRockBurstSystem({
         disintegrate: true,
+        fire: true,
         maxBursts: 6,
       }),
     [],
   )
 
   useEffect(() => {
-    for (let i = 0; i < geometries.length; i++) {
-      geoRadii.current[i] = geometries[i].boundingSphere?.radius ?? 1
+    for (let i = 0; i < POOL_SIZE; i++) {
+      const geometry = geometries[i % geometries.length]
+      geoRadii.current[i] = geometry.boundingSphere?.radius ?? 1
     }
 
     const destroyRock = (index: number) => {
@@ -375,7 +525,25 @@ export function DriftingRocks() {
       _burstOrigin.copy(rock.position)
       // Match the visible boulder — a slight overshoot, not a screen-filling blast.
       const fxSize = Math.max(rock.scale * geoRadii.current[index] * 1.2, 0.028)
-      bursts.spawn(_burstOrigin, fxSize)
+      if (rock.kind === 'giant') {
+        bursts.spawn(_burstOrigin, fxSize, 'giant')
+        bursts.spawn(_burstOrigin, fxSize, 'giant')
+      } else {
+        bursts.spawn(_burstOrigin, fxSize)
+      }
+      switch (rock.kind) {
+        case 'giant':
+          spawnShards(rock, rocksRef.current)
+          break
+        case 'drift':
+        case 'shard':
+        case 'shower':
+          break
+        default: {
+          const exhaustive: never = rock.kind
+          return exhaustive
+        }
+      }
       rock.active = false
       if (mesh) mesh.visible = false
       recordMeteorStrike()
@@ -404,16 +572,23 @@ export function DriftingRocks() {
     setDriftingRockRayPick((origin, dir) => {
       const rocks = rocksRef.current
       let bestT = Infinity
+      let best = -1
       for (let i = 0; i < POOL_SIZE; i++) {
         const rock = rocks[i]
         if (!rock.active) continue
-        // Wider than collision — pull the meteor plane onto nearby debris.
-        const radius = hitRadiusFor(rock, geoRadii.current[i]) * 1.8
+        const body = hitRadiusFor(rock, geoRadii.current[i])
+        // Small rocks need a wide grab. The giant's own radius is already
+        // the generous one, so it isn't clamped back down to pebble size.
+        const radius =
+          rock.kind === 'giant' ? body : Math.min(body * 2.4, body + 0.45)
         const t = raySphere(origin, dir, rock.position, radius)
-        if (t > 0 && t < bestT) bestT = t
+        if (t > 0 && t < bestT) {
+          bestT = t
+          best = i
+        }
       }
-      if (!Number.isFinite(bestT)) return null
-      return { distance: bestT }
+      if (best < 0) return null
+      return { distance: bestT, point: rocks[best].position }
     })
 
     return () => {
@@ -431,16 +606,36 @@ export function DriftingRocks() {
     const camera = state.camera
     if (!(camera instanceof THREE.PerspectiveCamera)) return
 
+    const rocks = rocksRef.current
+
     spawnTimerRef.current -= delta
     if (spawnTimerRef.current <= 0) {
-      const inactive = rocksRef.current.find((rock) => !rock.active)
-      if (inactive) {
-        activateRock(inactive, camera)
-      }
+      const inactive = rocks.find((rock) => rock.kind === 'drift' && !rock.active)
+      if (inactive) activateRock(inactive, camera)
       spawnTimerRef.current = 4.5 + Math.random() * 5.5
     }
 
-    const rocks = rocksRef.current
+    giantTimerRef.current -= delta
+    if (giantTimerRef.current <= 0) {
+      const giant = rocks.find((rock) => rock.kind === 'giant' && !rock.active)
+      if (giant) {
+        activateGiant(giant, camera)
+        giantTimerRef.current = RARE_INTERVAL
+      } else {
+        giantTimerRef.current = 20
+      }
+    }
+
+    showerTimerRef.current -= delta
+    if (showerTimerRef.current <= 0) {
+      const shower = rocks.filter((rock) => rock.kind === 'shower')
+      if (activateShower(shower, camera)) {
+        showerTimerRef.current = RARE_INTERVAL
+      } else {
+        showerTimerRef.current = 20
+      }
+    }
+
     for (let i = 0; i < POOL_SIZE; i++) {
       const rock = rocks[i]
       const mesh = meshRefs.current[i]
@@ -482,7 +677,7 @@ export function DriftingRocks() {
           ref={(node) => {
             meshRefs.current[index] = node
           }}
-          geometry={geometries[index]}
+          geometry={geometries[index % geometries.length]}
           material={material}
           visible={false}
           renderOrder={5}

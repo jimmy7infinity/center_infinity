@@ -68,10 +68,9 @@ function useWideAspect() {
 }
 
 /**
- * A colour display set into the device beside the e-ink panel. It is lit, not
- * printed: it sits above the panel's texture and room light, and casts the same
- * calm white onto the e-ink whatever it shows. Page turns cut it like an LCD —
- * only the e-ink side does the refresh flash.
+ * A colour display set into the device beside the e-ink panel. It sits above
+ * the panel's texture. Page turns cut it like an LCD — only the e-ink side
+ * does the refresh flash.
  *
  * A project with `screen: 'planets'` draws nothing here. The scene's own shells
  * move into the right half instead.
@@ -93,7 +92,7 @@ export function ColorScreen({
   const shot = wideAspect && project.imageWide ? project.imageWide : hero
 
   return (
-    <div className={`color-screen color-screen--${variant} emit-area`}>
+    <div className={`color-screen color-screen--${variant}`}>
       <div key={project.name} className="color-screen__content">
         {shot ? (
           <img

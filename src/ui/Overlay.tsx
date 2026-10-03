@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { StatusBar } from './StatusBar'
+import { MeteorAimGuide, MeteorAimToggle } from './MeteorAim'
 import { PageNav } from './PageNav'
 import { InkPhotoFilter } from './InkPhoto'
 import { ColorScreen } from './ColorScreen'
@@ -52,7 +53,7 @@ function pageTitle(beat: BeatId) {
 
 const PAGE_TITLES = BEATS.map(pageTitle)
 
-function PageContent({ beat }: { beat: BeatId }) {
+function PageContent({ beat, active }: { beat: BeatId; active: boolean }) {
   switch (beat) {
     case 'hero':
       return <CoverPage />
@@ -63,7 +64,7 @@ function PageContent({ beat }: { beat: BeatId }) {
     case 'work-3':
     case 'work-4':
     case 'work-5':
-      return <ProjectPage project={projectFor(beat)} />
+      return <ProjectPage project={projectFor(beat)} active={active} />
     case 'contact':
       return <ContactPage />
     default: {
@@ -111,7 +112,7 @@ function Page({
       aria-label={PAGE_TITLES[index]}
       data-page-scroll
     >
-      <PageContent beat={beat} />
+      <PageContent beat={beat} active={active} />
     </section>
   )
 }
@@ -143,6 +144,8 @@ export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
       {showChrome ? (
         <div className="game-veil pointer-events-none fixed inset-0 z-[103]">
           <StatusBar title={PAGE_TITLES[index]} />
+          {BEATS[index] === 'hero' ? <MeteorAimToggle /> : null}
+          <MeteorAimGuide />
           {BEATS[index] === 'contact' ? <ContactFooter /> : null}
           <PageNav index={index} titles={PAGE_TITLES} />
         </div>

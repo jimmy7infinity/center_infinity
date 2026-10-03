@@ -1,5 +1,6 @@
 import type { ServiceIconName } from '../ui/icons'
 import { BEATS, WORK_BEATS } from '../lib/beats'
+import { technicalByName, type TechnicalRead } from './technical'
 
 /**
  * Stage of the work, not a free-text badge. A union keeps the status colour and
@@ -49,6 +50,8 @@ export type Project = {
    * treatment so it can't be mistaken for a real case study before it's filled.
    */
   placeholder?: boolean
+  /** Employer-facing read. Absent projects show the client face only. */
+  technical?: TechnicalRead
 }
 
 const catalog: Project[] = [
@@ -216,6 +219,7 @@ export const projects: Project[] = catalog
   .filter((project) => !project.hidden)
   .map((project, order) => ({
     ...project,
+    technical: technicalByName[project.name],
     index: String(order + 1).padStart(2, '0'),
   }))
 

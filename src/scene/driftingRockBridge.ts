@@ -8,7 +8,7 @@ type SegmentCollider = (a: THREE.Vector3, b: THREE.Vector3) => boolean
 type RayPick = (
   origin: THREE.Vector3,
   dir: THREE.Vector3,
-) => { distance: number } | null
+) => { distance: number; point: THREE.Vector3 } | null
 
 let collider: SegmentCollider | null = null
 let rayPick: RayPick | null = null
@@ -36,6 +36,6 @@ export function hitDriftingRockWithSegment(
 export function pickDriftingRockAlongRay(
   origin: THREE.Vector3,
   dir: THREE.Vector3,
-): { distance: number } | null {
+): { distance: number; point: THREE.Vector3 } | null {
   return rayPick?.(origin, dir) ?? null
 }

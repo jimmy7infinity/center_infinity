@@ -205,43 +205,21 @@ export const HERO_CAMERA = {
   fov: 52,
 } as const
 
-/** Where the cluster sits. `panel` is the right half of a project page. */
-export type ShellPlacement = 'hero' | 'panel'
-
 /**
- * Composition `fx` is resolved with a 42° frame, then drawn by a 52° camera,
- * so a fraction of that frame is not a fraction of the screen. This converts.
- */
-const SCREEN_PER_FRAME = Math.tan(FOV_HALF) / Math.tan((HERO_CAMERA.fov / 2) * DEG)
-
-/** `fx` that lands on the middle of the right half of the screen. */
-function panelFx(aspect: number): number {
-  const screenOffset = 0.24
-  return 0.5 + (screenOffset * Math.max(aspect, 1)) / SCREEN_PER_FRAME
-}
-
-/**
- * How far to shrink the cluster so the largest shell fits that panel.
- * 1 on a normal desktop; lower when the viewport is too narrow for it.
- */
-export function panelFit(aspect: number): number {
-  const widthFraction = (0.7 / Math.max(aspect, 1)) * SCREEN_PER_FRAME
-  return Math.min(1, 0.4 / widthFraction)
-}
-
-/**
- * Resolve a shell's pose against the live aspect and write into `out`.
+ * Resolve a shell's hero pose against the live aspect and write into `out`.
  * No heap allocations — keep one `ShellSample` per shell.
+ *
+ * The Center Infinity page does not shift these fractions. It draws this same
+ * picture at three-quarter size, so the nested crescents stay concentric and
+ * the smaller ones sit at the left of the right-hand scene.
  */
 export function resolveShellPose(
   motion: ShellMotion,
   aspect: number,
   out: ShellSample,
-  placement: ShellPlacement = 'hero',
 ): void {
   const { fx, fy, z, light, intensity } = motion.pose
-  const frameFx = placement === 'panel' ? panelFx(aspect) + (fx - 0.5) : fx
-  resolveFrame(frameFx, fy, z, aspect, out.position)
+  resolveFrame(fx, fy, z, aspect, out.position)
   out.lightDir.set(light[0], light[1], light[2]).normalize()
   out.intensity = intensity
 }

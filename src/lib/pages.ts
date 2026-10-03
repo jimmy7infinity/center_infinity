@@ -23,7 +23,7 @@ let turning = false
 let gestureLocked = false
 let pagingPaused = false
 let unlockTimer = 0
-let touchOrigin: { y: number; scroller: HTMLElement | null } | null = null
+let touchOrigin: { y: number; target: EventTarget | null } | null = null
 let lastWheelAt = 0
 /** The current wheel gesture already scrolled a page's own content. */
 let wheelGestureScrolled = false
@@ -95,11 +95,29 @@ export function setPagingPaused(paused: boolean) {
   touchOrigin = null
 }
 
-/** The page's own scroller, when its content is taller than the display. */
-function scrollerFor(target: EventTarget | null) {
-  return target instanceof Element
-    ? target.closest<HTMLElement>('[data-page-scroll]')
-    : null
+function overflowYScrolls(el: HTMLElement) {
+  const value = getComputedStyle(el).overflowY
+  return value === 'auto' || value === 'scroll'
+}
+
+/** The nearest scroller that can still move, otherwise the page itself. */
+function scrollerFor(target: EventTarget | null, delta = 0) {
+  if (!(target instanceof Element)) return null
+  const page = target.closest<HTMLElement>('[data-page-scroll]')
+  if (delta !== 0) {
+    let node: Element | null = target
+    while (node && node !== page) {
+      if (
+        node instanceof HTMLElement &&
+        overflowYScrolls(node) &&
+        canScroll(node, delta)
+      ) {
+        return node
+      }
+      node = node.parentElement
+    }
+  }
+  return page
 }
 
 /** A modal owns its own input; nothing in it turns pages. */
@@ -121,7 +139,7 @@ function onWheel(event: WheelEvent) {
   lastWheelAt = now
   if (newGesture) wheelGestureScrolled = false
 
-  if (canScroll(scrollerFor(event.target), event.deltaY)) {
+  if (canScroll(scrollerFor(event.target, event.deltaY), event.deltaY)) {
     wheelGestureScrolled = true
     return
   }
@@ -136,7 +154,7 @@ function onTouchStart(event: TouchEvent) {
   if (event.touches.length !== 1 || inDialog(event.target)) return
   touchOrigin = {
     y: event.touches[0].clientY,
-    scroller: scrollerFor(event.target),
+    target: event.target,
   }
 }
 
@@ -148,7 +166,7 @@ function onTouchEnd(event: TouchEvent) {
   const dy = origin.y - endY
   if (Math.abs(dy) < TOUCH_THRESHOLD_PX) return
   // A swipe that scrolled the page's content is reading, not turning.
-  if (canScroll(origin.scroller, dy)) return
+  if (canScroll(scrollerFor(origin.target, dy), dy)) return
   turnPage(dy)
 }
 

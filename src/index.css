@@ -157,6 +157,44 @@
     0 10px 22px -12px rgb(0 0 0 / 0.7);
 }
 
+/* Hero shot switch. Recessed into the panel, the active icon sits raised. */
+.aim-switch {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(var(--ink-status-h) + 0.9rem);
+  right: var(--ink-gutter);
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #2a2a28;
+  box-shadow:
+    inset 3px 3px 7px rgb(0 0 0 / 0.55),
+    inset -2px -2px 5px rgb(255 255 255 / 0.05);
+}
+
+.aim-switch button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-regolith);
+  cursor: pointer;
+}
+
+.aim-switch button[aria-pressed='true'] {
+  color: var(--color-rim);
+  background: #3c3c39;
+  box-shadow:
+    3px 3px 6px rgb(0 0 0 / 0.5),
+    -1px -1px 4px rgb(255 255 255 / 0.07);
+}
+
 .ink-statusbar__title {
   max-width: 40vw;
   margin: 0;

@@ -1,0 +1,159 @@
+/* At rest the faces are ordinary type. The quarter turn is applied by
+   ProjectDossier only after the cube is already sitting in the pose on
+   screen, so the transition is a rotation and not a push.
+   --dossier-half is half the panel width, in pixels, set for the turn. */
+
+.dossier__viewport {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dossier__cube {
+  position: relative;
+}
+
+.dossier__viewport.is-3d {
+  perspective: 1600px;
+  perspective-origin: 50% 50%;
+}
+
+.dossier__viewport.is-3d .dossier__cube {
+  height: 100%;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.dossier__face {
+  background: transparent;
+}
+
+/* The technical face sits in the overview's box, so the column never
+   changes size when the turn lands. */
+.dossier__face--back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.dossier__cube.is-built .dossier__face--front {
+  visibility: hidden;
+}
+
+.dossier__cube.is-built .dossier__face--back {
+  visibility: visible;
+}
+
+.dossier__viewport.is-3d .dossier__face--front,
+.dossier__viewport.is-3d .dossier__face--back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  visibility: visible;
+  background: var(--color-void);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.dossier__viewport.is-3d .dossier__face--front {
+  transform: translateZ(var(--dossier-half));
+}
+
+.dossier__viewport.is-3d .dossier__face--back {
+  transform: rotateY(90deg) translateZ(var(--dossier-half));
+}
+
+.dossier__face-inner {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dossier__face--back .dossier__face-inner--built {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.dossier__face-inner--built .dossier__built {
+  flex: 1;
+  min-height: 0;
+  margin-top: 1.5rem;
+}
+
+.dossier__built {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dossier__sheet {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow: auto;
+}
+
+.dossier__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 1.25rem;
+}
+
+.dossier__code {
+  margin: 0;
+  max-width: 100%;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--color-rule);
+  background: rgb(0 0 0 / 0.18);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--color-rim);
+  white-space: pre;
+}
+
+.dossier__abstract {
+  margin: 0;
+}
+
+.dossier__abstract div + div {
+  margin-top: 1rem;
+}
+
+.dossier__abstract dt {
+  margin-bottom: 0.35rem;
+}
+
+.dossier__abstract dd {
+  margin: 0;
+}
+
+.dossier__sheet.is-reprinting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: ink-refresh 440ms step-end both;
+}
+
+.dossier__step:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.dossier__step:focus-visible {
+  outline: 1px solid var(--color-rim);
+  outline-offset: 3px;
+}
+

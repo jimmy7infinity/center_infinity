@@ -11,10 +11,6 @@ import { useEffect, useRef } from 'react'
  * - a tight coloured bloom (scatter in the lens and the panel's top film),
  * - a wide, faint spill with inverse-square falloff — the light landing on the
  *   panel around it, which is most of what makes it read as a source.
- *
- * `.emit-area` elements (the colour screen) are area lights instead: one calm
- * white that spills left onto the panel beside them, never over the screen
- * itself, and the same whatever the screen is showing.
  */
 
 /** All radii in CSS pixels. */
@@ -27,12 +23,6 @@ const SPILL_STRENGTH = 0.11
 const BLOOM_STRENGTH = 0.3
 /** Share of white in the core — saturated light clips toward white. */
 const CORE_WHITE = 0.62
-/** Area light falloff, as blur radii in CSS pixels: a near rim and a far wash. */
-const AREA_NEAR_BLUR = 26
-const AREA_FAR_BLUR = 220
-const AREA_NEAR_STRENGTH = 0.07
-const AREA_FAR_STRENGTH = 0.09
-const AREA_COLOUR: Rgb = [236, 233, 226]
 const BREATHE_SECONDS = 3.6
 const BREATHE_DEPTH = 0.35
 
@@ -112,46 +102,6 @@ function drawEmitter(
   ctx.fillRect(x - coreR, y - coreR, coreR * 2, coreR * 2)
 }
 
-/** Far enough off-canvas that only the blurred shadow of the shape lands. */
-const SHADOW_THROW = 100_000
-
-function drawAreaLights(
-  ctx: CanvasRenderingContext2D,
-  areas: readonly DOMRect[],
-  width: number,
-  height: number,
-  dpr: number,
-) {
-  ctx.clearRect(0, 0, width, height)
-  ctx.globalCompositeOperation = 'lighter'
-  for (const rect of areas) {
-    const x = rect.left * dpr
-    const y = rect.top * dpr
-    const w = rect.width * dpr
-    const h = rect.height * dpr
-
-    ctx.save()
-    // The screen is set into the right of the device: its light only falls
-    // left, across the e-ink, within the band the screen spans.
-    ctx.beginPath()
-    ctx.rect(0, y, x, h)
-    ctx.clip()
-    // A blurred copy of the lit rectangle is the falloff of an area source.
-    // The shape is drawn far off-canvas so only its shadow arrives.
-    ctx.shadowOffsetX = SHADOW_THROW
-    ctx.fillStyle = '#000'
-    for (const [blur, strength] of [
-      [AREA_NEAR_BLUR, AREA_NEAR_STRENGTH],
-      [AREA_FAR_BLUR, AREA_FAR_STRENGTH],
-    ] as const) {
-      ctx.shadowBlur = blur * dpr
-      ctx.shadowColor = rgba(AREA_COLOUR, strength)
-      ctx.fillRect(x - SHADOW_THROW, y, w, h)
-    }
-    ctx.restore()
-  }
-}
-
 export function EmitterLight() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -160,35 +110,14 @@ export function EmitterLight() {
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
-    // Area light is a heavy blur, so it is drawn once per change and reused.
-    const areaCanvas = document.createElement('canvas')
-    const areaCtx = areaCanvas.getContext('2d')
-    if (!areaCtx) return
-
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let dpr = 1
     let frame = 0
-    let areaKey = ''
 
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = areaCanvas.width = Math.round(window.innerWidth * dpr)
-      canvas.height = areaCanvas.height = Math.round(window.innerHeight * dpr)
-      areaKey = ''
-    }
-
-    const updateAreas = () => {
-      const areas: DOMRect[] = []
-      let key = ''
-      for (const el of document.querySelectorAll('.emit-area')) {
-        const rect = el.getBoundingClientRect()
-        if (rect.width === 0) continue
-        areas.push(rect)
-        key += `${rect.left | 0},${rect.top | 0},${rect.width | 0},${rect.height | 0};`
-      }
-      if (key === areaKey) return
-      areaKey = key
-      drawAreaLights(areaCtx, areas, areaCanvas.width, areaCanvas.height, dpr)
+      canvas.width = Math.round(window.innerWidth * dpr)
+      canvas.height = Math.round(window.innerHeight * dpr)
     }
 
     const draw = (time: number) => {
@@ -203,12 +132,6 @@ export function EmitterLight() {
       if (presence <= 0.001) return
 
       ctx.globalCompositeOperation = 'lighter'
-      updateAreas()
-      if (areaKey) {
-        ctx.globalAlpha = presence
-        ctx.drawImage(areaCanvas, 0, 0)
-        ctx.globalAlpha = 1
-      }
 
       const phase = (time / 1000 / BREATHE_SECONDS) * Math.PI * 2
       const breath = reducedMotion.matches

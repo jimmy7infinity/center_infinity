@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { isGameActive } from './gameMode'
+import { meteorAim, noteMeteorAimDrag } from './meteorAim'
 
 /**
  * Mutable pointer singleton, read per-frame by the scene. Same shape and same
@@ -58,6 +59,11 @@ export function usePointerTracking(active: boolean) {
       pointerState.x = x
       pointerState.y = y
       pointerState.presence = 1
+      if (meteorAim.dragging) {
+        meteorAim.x = x
+        meteorAim.y = y
+        noteMeteorAimDrag()
+      }
     }
 
     const onLeave = () => {
@@ -65,6 +71,10 @@ export function usePointerTracking(active: boolean) {
       pointerState.vx = 0
       pointerState.vy = 0
       hasPrev = false
+      if (meteorAim.dragging) {
+        meteorAim.dragging = false
+        noteMeteorAimDrag()
+      }
     }
 
     const isChromeTarget = (target: EventTarget | null) =>
@@ -79,6 +89,40 @@ export function usePointerTracking(active: boolean) {
       if (isGameActive() || isChromeTarget(event.target)) return
       event.preventDefault()
       window.getSelection()?.removeAllRanges()
+      if (meteorAim.mode !== 'drag' || pointerState.overShell) return
+      const x = (event.clientX / window.innerWidth) * 2 - 1
+      const y = -((event.clientY / window.innerHeight) * 2 - 1)
+      pointerState.x = x
+      pointerState.y = y
+      pointerState.presence = 1
+      meteorAim.dragging = true
+      meteorAim.pressX = x
+      meteorAim.pressY = y
+      meteorAim.x = x
+      meteorAim.y = y
+      meteorAim.suppressClick = true
+      noteMeteorAimDrag()
+    }
+
+    const onMouseUp = (event: MouseEvent) => {
+      if (!meteorAim.dragging) return
+      const x = (event.clientX / window.innerWidth) * 2 - 1
+      const y = -((event.clientY / window.innerHeight) * 2 - 1)
+      const dx = meteorAim.pressX - x
+      const dy = meteorAim.pressY - y
+      meteorAim.dragging = false
+      meteorAim.x = x
+      meteorAim.y = y
+      if (Math.hypot(dx, dy) > 0.035) {
+        meteorAim.shot = {
+          x: meteorAim.pressX,
+          y: meteorAim.pressY,
+          dx,
+          dy,
+          power: Math.min(1, Math.hypot(dx, dy) / 0.55),
+        }
+      }
+      noteMeteorAimDrag()
     }
 
     const onClick = (event: MouseEvent) => {
@@ -88,6 +132,10 @@ export function usePointerTracking(active: boolean) {
       pointerState.x = (event.clientX / window.innerWidth) * 2 - 1
       pointerState.y = -((event.clientY / window.innerHeight) * 2 - 1)
       pointerState.presence = 1
+      if (meteorAim.suppressClick) {
+        meteorAim.suppressClick = false
+        return
+      }
       pointerState.spaceClick = true
       window.getSelection()?.removeAllRanges()
     }
@@ -96,6 +144,7 @@ export function usePointerTracking(active: boolean) {
     document.addEventListener('pointerleave', onLeave)
     window.addEventListener('blur', onLeave)
     window.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('mouseup', onMouseUp)
     window.addEventListener('click', onClick)
 
     return () => {
@@ -103,6 +152,7 @@ export function usePointerTracking(active: boolean) {
       document.removeEventListener('pointerleave', onLeave)
       window.removeEventListener('blur', onLeave)
       window.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('mouseup', onMouseUp)
       window.removeEventListener('click', onClick)
       pointerState.presence = 0
       pointerState.vx = 0
