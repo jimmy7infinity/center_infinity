@@ -1,6 +1,7 @@
 import type { GameId } from '../game/types'
 import { unlockAchievement } from './achievements'
 import { goToPage, hasEntered, setPagingPaused } from './pages'
+import { prefersTouchControls } from './touch'
 
 export const GAME_DURATION_SEC = 30
 export const POINTS_PER_ROCK = 100
@@ -71,7 +72,7 @@ export function addGameScore(points: number) {
 
 /** WebGL path only — caller should already know the scene is up. */
 export function canEnterGame() {
-  if (gameMode.active) return false
+  if (gameMode.active || prefersTouchControls()) return false
   return hasEntered()
 }
 

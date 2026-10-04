@@ -4,12 +4,14 @@ import {
   MESH_LINE_ALPHA,
   MESH_WELL_RADIUS,
   meshField,
+  subscribeMeshWells,
 } from '../lib/meshField'
 
 /**
  * A fine grid printed across the panel that bends toward the cursor, like a
- * field lensing around a mass. It sits under the panel's texture and room
- * light, so it reads as ink, not as an overlay.
+ * field lensing around a mass. Fixed wells, when a page sets them, pinch the
+ * same grid. It sits under the panel's texture and room light, so it reads
+ * as ink, not as an overlay.
  */
 
 /** Points per line are spaced this far apart where the mesh bends. */
@@ -45,12 +47,132 @@ export function WarpMesh() {
     let presence = 0
     let present = false
     let energy = 0
+    let outX = 0
+    let outY = 0
+    // Fixed wells plus the cursor: a handful of spans, reused so drawing doesn't allocate.
+    const SPAN_CAP = 8
+    const spanLo = new Float64Array(SPAN_CAP)
+    const spanHi = new Float64Array(SPAN_CAP)
+    let spanCount = 0
+    const cursorRadius2 = MESH_WELL_RADIUS * MESH_WELL_RADIUS
 
-    const warp = (x: number, y: number, k: number): [number, number] => {
-      const dx = meshField.x - x
-      const dy = meshField.y - y
-      const f = k * Math.exp(-(dx * dx + dy * dy) / (MESH_WELL_RADIUS * MESH_WELL_RADIUS))
-      return [x + dx * f, y + dy * f]
+    const pushSpan = (lo: number, hi: number) => {
+      if (spanCount >= SPAN_CAP) return
+      let i = spanCount
+      while (i > 0 && spanLo[i - 1] > lo) {
+        spanLo[i] = spanLo[i - 1]
+        spanHi[i] = spanHi[i - 1]
+        i--
+      }
+      spanLo[i] = lo
+      spanHi[i] = hi
+      spanCount++
+    }
+
+    const mergeSpans = () => {
+      if (spanCount <= 1) return
+      let write = 0
+      let lo = spanLo[0]
+      let hi = spanHi[0]
+      for (let i = 1; i < spanCount; i++) {
+        if (spanLo[i] <= hi) hi = Math.max(hi, spanHi[i])
+        else {
+          spanLo[write] = lo
+          spanHi[write] = hi
+          write++
+          lo = spanLo[i]
+          hi = spanHi[i]
+        }
+      }
+      spanLo[write] = lo
+      spanHi[write] = hi
+      spanCount = write + 1
+    }
+
+    /** Spans of the line that pass near a well and need samples. */
+    const gatherSpans = (fixed: number, vertical: boolean) => {
+      spanCount = 0
+      const cursorReach = MESH_WELL_RADIUS * 3
+      if (meshField.pull >= 0.002) {
+        const axis = vertical ? meshField.x : meshField.y
+        const along = vertical ? meshField.y : meshField.x
+        if (Math.abs(fixed - axis) <= cursorReach) {
+          pushSpan(along - cursorReach, along + cursorReach)
+        }
+      }
+      const wells = meshField.wells
+      for (let i = 0; i < wells.length; i++) {
+        const well = wells[i]
+        const reach = well.radius * 2.2
+        const axis = vertical ? well.x : well.y
+        const along = vertical ? well.y : well.x
+        if (Math.abs(fixed - axis) <= reach) pushSpan(along - reach, along + reach)
+      }
+      mergeSpans()
+    }
+
+    const place = (x: number, y: number) => {
+      let ox = 0
+      let oy = 0
+      const pull = meshField.pull
+      if (pull >= 0.002) {
+        const dx = meshField.x - x
+        const dy = meshField.y - y
+        const d2 = dx * dx + dy * dy
+        if (d2 < cursorRadius2 * 9) {
+          const f = pull * Math.exp(-d2 / cursorRadius2)
+          ox += dx * f
+          oy += dy * f
+        }
+      }
+      const wells = meshField.wells
+      for (let i = 0; i < wells.length; i++) {
+        const well = wells[i]
+        const dx = well.x - x
+        const dy = well.y - y
+        const r2 = well.radius * well.radius
+        const d2 = dx * dx + dy * dy
+        if (d2 >= r2 * 4.84) continue
+        const f = well.pull * Math.exp(-d2 / r2)
+        ox += dx * f
+        oy += dy * f
+      }
+      outX = x + ox
+      outY = y + oy
+    }
+
+    const trace = (fixed: number, limit: number, vertical: boolean) => {
+      gatherSpans(fixed, vertical)
+      if (vertical) ctx.moveTo(fixed, 0)
+      else ctx.moveTo(0, fixed)
+      if (spanCount === 0) {
+        if (vertical) ctx.lineTo(fixed, limit)
+        else ctx.lineTo(limit, fixed)
+        return
+      }
+      let along = 0
+      for (let i = 0; i < spanCount; i++) {
+        const start = Math.max(0, spanLo[i])
+        const end = Math.min(limit, spanHi[i])
+        if (end - start < 1) continue
+        if (start > along + 0.5) {
+          if (vertical) ctx.lineTo(fixed, start)
+          else ctx.lineTo(start, fixed)
+        }
+        for (let t = Math.max(along, start); t < end; t += STEP) {
+          if (vertical) place(fixed, t)
+          else place(t, fixed)
+          ctx.lineTo(outX, outY)
+        }
+        if (vertical) place(fixed, end)
+        else place(end, fixed)
+        ctx.lineTo(outX, outY)
+        along = end
+      }
+      if (along < limit - 0.5) {
+        if (vertical) ctx.lineTo(fixed, limit)
+        else ctx.lineTo(limit, fixed)
+      }
     }
 
     const draw = () => {
@@ -59,31 +181,48 @@ export function WarpMesh() {
 
       ctx.strokeStyle = LINE
       ctx.lineWidth = 1 / dpr
-      const { x: cx, y: cy, pull: k } = meshField
-      const reach = MESH_WELL_RADIUS * 3
       const ox = ((width / 2) % MESH_CELL) - MESH_CELL
       const oy = ((height / 2) % MESH_CELL) - MESH_CELL
 
       ctx.beginPath()
-      for (let x = ox; x <= width + MESH_CELL; x += MESH_CELL) {
-        ctx.moveTo(x, 0)
-        if (k >= 0.002 && Math.abs(x - cx) <= reach) {
-          for (let y = Math.max(0, cy - reach); y <= Math.min(height, cy + reach); y += STEP) {
-            const [px, py] = warp(x, y, k)
-            ctx.lineTo(px, py)
+      for (let x = ox; x <= width + MESH_CELL; x += MESH_CELL) trace(x, height, true)
+      for (let y = oy; y <= height + MESH_CELL; y += MESH_CELL) trace(y, width, false)
+      ctx.stroke()
+
+      // A second, shorter pass so each fixed well reads as a knot, not a faint bend.
+      const wells = meshField.wells
+      if (wells.length === 0) return
+      ctx.strokeStyle = 'rgba(226, 223, 216, 0.07)'
+      ctx.beginPath()
+      for (let i = 0; i < wells.length; i++) {
+        const well = wells[i]
+        const reach = well.radius * 1.05
+        const x0 = well.x - reach
+        const x1 = well.x + reach
+        const y0 = well.y - reach
+        const y1 = well.y + reach
+        for (let x = ox; x <= width + MESH_CELL; x += MESH_CELL) {
+          if (x < x0 || x > x1) continue
+          const yStart = Math.max(0, y0)
+          const yEnd = Math.min(height, y1)
+          place(x, yStart)
+          ctx.moveTo(outX, outY)
+          for (let y = yStart + STEP; y <= yEnd; y += STEP) {
+            place(x, y)
+            ctx.lineTo(outX, outY)
           }
         }
-        ctx.lineTo(x, height)
-      }
-      for (let y = oy; y <= height + MESH_CELL; y += MESH_CELL) {
-        ctx.moveTo(0, y)
-        if (k >= 0.002 && Math.abs(y - cy) <= reach) {
-          for (let x = Math.max(0, cx - reach); x <= Math.min(width, cx + reach); x += STEP) {
-            const [px, py] = warp(x, y, k)
-            ctx.lineTo(px, py)
+        for (let y = oy; y <= height + MESH_CELL; y += MESH_CELL) {
+          if (y < y0 || y > y1) continue
+          const xStart = Math.max(0, x0)
+          const xEnd = Math.min(width, x1)
+          place(xStart, y)
+          ctx.moveTo(outX, outY)
+          for (let x = xStart + STEP; x <= xEnd; x += STEP) {
+            place(x, y)
+            ctx.lineTo(outX, outY)
           }
         }
-        ctx.lineTo(width, y)
       }
       ctx.stroke()
     }
@@ -141,6 +280,7 @@ export function WarpMesh() {
     }
 
     resize()
+    const unsubscribeWells = subscribeMeshWells(wake)
     window.addEventListener('resize', resize)
     if (live) {
       window.addEventListener('pointermove', onMove, { passive: true })
@@ -150,6 +290,7 @@ export function WarpMesh() {
 
     return () => {
       cancelAnimationFrame(frame)
+      unsubscribeWells()
       window.removeEventListener('resize', resize)
       window.removeEventListener('pointermove', onMove)
       document.documentElement.removeEventListener('pointerleave', onLeave)

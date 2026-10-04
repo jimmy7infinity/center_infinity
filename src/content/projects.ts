@@ -192,26 +192,6 @@ const catalog: Project[] = [
       },
     ],
   },
-  {
-    index: '07',
-    name: 'Wiktoria Lewandowska',
-    tagline: 'A quiet portfolio, built to be read',
-    description:
-      'A client site for a marketing and media specialist — section-paged, themeable, and fast. Proof we also ship the simple page: type, air, and a CV that does not need a WebGL field to feel finished.',
-    audience: 'People who need a professional site that stays out of the way.',
-    role: 'Solo — design and build',
-    highlights: [
-      'Section-paged, not a scroll dump',
-      'Mint Grove / Nordic Clay themes',
-      'Prerendered for search',
-    ],
-    categories: ['Client', 'Site'],
-    stack: ['React', 'Vite', 'TypeScript', 'Caddy'],
-    status: 'shipping',
-    href: 'https://wlewandowska.up.railway.app/?utm_source=centerinfinity',
-    image: '/projects/wiktoria.jpg',
-    hidden: true,
-  },
 ]
 
 /** On the display, in order. Hidden entries stay in the catalog. */

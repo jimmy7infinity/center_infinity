@@ -909,139 +909,456 @@ html.game-active body {
   animation-delay: 0.36s;
 }
 
-/* Easter-egg achievements — horizontal tray; drawers push following icons. */
-.achievement-tray {
+/* One unlock notice. It sits under the status bar and leaves on its own. */
+.achievement-toast {
+  position: absolute;
+  top: calc(var(--ink-status-h) + 0.7rem);
+  left: 50%;
+  z-index: 3;
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
   align-items: center;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  max-width: min(100%, calc(100vw - 5.5rem));
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  gap: 0.7rem;
+  max-width: min(18rem, calc(100vw - 2.5rem));
+  padding: 0.45rem 0.8rem 0.45rem 0.45rem;
+  border: 1px solid color-mix(in oklab, var(--color-rim) 18%, transparent);
+  background: color-mix(in oklab, var(--color-void) 88%, transparent);
+  box-shadow: 0 10px 22px -14px rgb(0 0 0 / 0.75);
+  pointer-events: none;
+  animation: achievement-toast-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@media (min-width: 768px) {
-  .achievement-tray {
-    max-width: min(100%, calc(100vw - 10rem));
-  }
-}
-
-.achievement-tray::-webkit-scrollbar {
-  display: none;
-}
-
-/*
- * Each chip is icon | drawer. Closed = `auto 0fr` (true zero). Open/hover =
- * `auto 1fr`, which grows in-flow and pushes later icons right.
- */
-.achievement-chip {
-  position: relative;
+.achievement-toast__icon {
   display: grid;
-  grid-template-columns: auto 0fr;
-  align-items: stretch;
-  list-style: none;
-  flex: 0 0 auto;
-  width: max-content;
-  margin: 0;
-  padding: 0;
-  height: 1.75rem;
-  color: var(--color-glow);
-  transition: grid-template-columns 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.achievement-chip:hover,
-.achievement-chip:focus-within,
-.achievement-chip.is-announcing {
-  grid-template-columns: auto 1fr;
-}
-
-/* Share a border with the previous icon so the strip reads flush. */
-.achievement-chip + .achievement-chip .achievement-chip__icon {
-  border-left-color: transparent;
-}
-
-.achievement-chip__hit {
-  display: block;
-  width: 1.75rem;
-  height: 1.75rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: default;
-}
-
-.achievement-chip__hit:focus-visible {
-  outline: 1px solid color-mix(in oklab, var(--color-rim) 40%, transparent);
-  outline-offset: 2px;
-}
-
-.achievement-chip__icon {
-  display: grid;
+  flex: none;
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
   border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
-  background: color-mix(in oklab, var(--color-void) 72%, transparent);
-  transition:
-    border-color 0.25s ease,
-    color 0.25s ease;
+  color: var(--color-rim);
 }
 
-.achievement-chip__drawer {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.achievement-chip__clip {
-  min-width: 0;
-  height: 100%;
-  overflow: hidden;
-}
-
-.achievement-chip__panel {
+.achievement-toast__copy {
   display: flex;
-  align-items: center;
-  width: max-content;
-  height: 100%;
-  padding: 0 0.7rem 0 0.55rem;
-  border: 1px solid color-mix(in oklab, var(--color-rim) 16%, transparent);
-  border-left: 0;
-  background: color-mix(in oklab, var(--color-void) 72%, transparent);
-  opacity: 0;
-  transform: translateX(-0.35rem);
-  transition:
-    opacity 0.22s ease,
-    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
-.achievement-chip__name {
+.achievement-toast__name {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  font-weight: 400;
-  letter-spacing: 0.025em;
-  white-space: nowrap;
+  letter-spacing: 0.04em;
   color: var(--color-rim);
 }
 
-.achievement-chip:hover .achievement-chip__icon,
-.achievement-chip:focus-within .achievement-chip__icon,
-.achievement-chip.is-announcing .achievement-chip__icon {
-  border-color: color-mix(in oklab, var(--color-glow) 45%, transparent);
+.achievement-toast__blurb {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  text-transform: none;
+  color: var(--color-regolith);
+}
+
+@keyframes achievement-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Practice: the engagement, set as type. The three words are the page. */
+/* ------------------------------------------------------------------ */
+
+.practice {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vh, 2.25rem);
+  min-height: 100%;
+}
+
+.practice__steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule);
+}
+
+.practice__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 1.2rem 0 1.35rem;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+/* Stars fall into the card's well. The type paints after, so it stays on top. */
+.practice__field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.practice__index {
+  margin-bottom: 0.7rem;
+}
+
+.practice__word {
+  margin: 0;
+  font-size: clamp(3.15rem, 6.2vw, 5.75rem);
+  font-weight: 500;
+  letter-spacing: -0.048em;
+  line-height: 0.86;
   color: var(--color-rim);
 }
 
-.achievement-chip:hover .achievement-chip__panel,
-.achievement-chip:focus-within .achievement-chip__panel,
-.achievement-chip.is-announcing .achievement-chip__panel {
-  opacity: 1;
-  transform: translateX(0);
+.practice__detail {
+  max-width: 22rem;
+  margin-top: 1.15rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-glow);
+  text-wrap: pretty;
+}
+
+.practice__plate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.75rem;
+  margin-top: 0.25rem;
+  padding: 0.95rem 1.1rem;
+  background: #2b2b29;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 10px 22px -16px rgb(0 0 0 / 0.85);
+}
+
+/* ------------------------------------------------------------------ */
+/* Clients: prints laid on the panel, not another colour screen.      */
+/* ------------------------------------------------------------------ */
+
+.client-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 3vh, 1.85rem);
+  min-height: 100%;
+}
+
+.client-sheet__grid {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.client-sheet__grid > li {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.client-sheet__grid > li > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Photo paper. The dark panel stays visible in the gaps. */
+.print {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #efece4;
+  color: #2a2a28;
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.72),
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 18px 34px -20px rgb(0 0 0 / 0.92);
+}
+
+a.print {
+  cursor: pointer;
+}
+
+a.print:hover {
+  background: #f7f4ec;
+}
+
+a.print:focus-visible {
+  outline: 1px solid var(--color-rim);
+  outline-offset: 3px;
+}
+
+.print__frame {
+  position: relative;
+  flex: none;
+  aspect-ratio: 16 / 10;
+  margin: 0.4rem 0.4rem 0;
+  overflow: hidden;
+  background: #c8c4ba;
+}
+
+.print__frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.print__frame--blank {
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent 42%),
+    #d9d5cc;
+}
+
+.print__standin {
+  max-width: 12rem;
+  font-size: clamp(1.85rem, 2.6vw, 2.75rem);
+  font-weight: 500;
+  letter-spacing: -0.042em;
+  line-height: 0.92;
+  text-align: center;
+  text-wrap: balance;
+  color: #3a3834;
+}
+
+.print__caption {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem 0.8rem;
+}
+
+.print__logo {
+  flex: none;
+  width: auto;
+  max-width: 5.5rem;
+  height: 1.7rem;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.print__meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.print__kicker {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.print__id {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  color: #7a776f;
+}
+
+.print__name {
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #242422;
+}
+
+.print__line {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #5e5c56;
+  text-wrap: pretty;
+}
+
+.print__go {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6e6b64;
+}
+
+a.print:hover .print__go {
+  color: #242422;
+}
+
+/* An unloaded frame: crop marks, no paper. */
+.print--open {
+  position: relative;
+  background: transparent;
+  box-shadow: none;
+  min-height: 11rem;
+}
+
+.print__corner {
+  position: absolute;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-color: rgb(226 223 216 / 0.62);
+  border-style: solid;
+  border-width: 0;
+}
+
+.print__corner--nw {
+  top: 0;
+  left: 0;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.print__corner--ne {
+  top: 0;
+  right: 0;
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+
+.print__corner--sw {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+}
+
+.print__corner--se {
+  right: 0;
+  bottom: 0;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+
+.print__open-index {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  color: rgb(148 146 140 / 0.85);
+}
+
+@media (min-width: 900px) {
+  .ink-page--fit .ink-page__inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin: 0 auto;
+    padding-block: clamp(1.35rem, 3.2vh, 2.35rem);
+  }
+
+  .practice,
+  .client-sheet {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .practice__steps {
+    flex: 1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 0;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .practice__step {
+    min-height: 0;
+    padding: 1.35rem 1.35rem 0.25rem 0;
+    border-bottom: 0;
+  }
+
+  .practice__step + .practice__step {
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--color-rule);
+  }
+
+  .practice__detail {
+    margin-top: auto;
+    padding-top: 1.5rem;
+    padding-bottom: 1.35rem;
+  }
+
+  .practice__plate {
+    margin-top: 0;
+  }
+
+  .client-sheet__grid {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .print__frame {
+    flex: 1;
+    aspect-ratio: auto;
+    min-height: 0;
+  }
+
+  .print--open {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .print__go {
+    display: none;
+  }
+
+  .practice {
+    gap: 1rem;
+  }
+
+  .practice__step {
+    padding: 0.85rem 0 0.95rem;
+  }
+
+  .practice__index {
+    margin-bottom: 0.35rem;
+  }
+
+  .practice__word {
+    font-size: 2.65rem;
+  }
+
+  .practice__detail {
+    margin-top: 0.65rem;
+  }
+
+  .practice__plate {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 0.85rem 0.95rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1052,8 +1369,7 @@ html.game-active body {
     transition-duration: 0.01ms !important;
   }
 
-  .achievement-chip,
-  .achievement-chip__panel {
-    transition: none;
+  .achievement-toast {
+    animation: none;
   }
 }

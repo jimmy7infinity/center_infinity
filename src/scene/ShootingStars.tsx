@@ -293,7 +293,12 @@ const _shotUp = new THREE.Vector3()
 const _shotDir = new THREE.Vector3()
 const _rockPoint = new THREE.Vector3()
 
-/** A rock sitting on the aim line, if the shot is pointed at one. */
+/**
+ * A point on the aim line, at a rock the line actually crosses.
+ * The press ray is skipped: steering into that rock would fire at the lens
+ * instead of along the drag. The point is on the camera ray, not the rock's
+ * centre, so a grazing hit does not yank the streak off the cue.
+ */
 function rockAlongAim(
   camera: THREE.PerspectiveCamera,
   shot: MeteorShot,
@@ -302,15 +307,15 @@ function rockAlongAim(
   if (len < 1e-5) return null
   const ux = shot.dx / len
   const uy = shot.dy / len
-  for (let i = 0; i <= 16; i++) {
+  for (let i = 1; i <= 16; i++) {
     const along = (i / 16) * 1.8
-    const x = THREE.MathUtils.clamp(shot.x + ux * along, -1, 1)
-    const y = THREE.MathUtils.clamp(shot.y + uy * along, -1, 1)
+    const x = shot.x + ux * along
+    const y = shot.y + uy * along
     _aimUnproject.set(x, y, 0.5).unproject(camera)
     _aimDir.copy(_aimUnproject).sub(camera.position).normalize()
     const pick = pickDriftingRockAlongRay(camera.position, _aimDir)
     if (!pick) continue
-    _rockPoint.copy(pick.point)
+    _rockPoint.copy(camera.position).addScaledVector(_aimDir, pick.distance)
     return _rockPoint
   }
   return null
@@ -326,33 +331,47 @@ function activatePlayerMeteor(
   const distance = CROSS_DISTANCE + 0.6
   const frameHeight = 2 * distance * Math.tan((camera.fov * Math.PI) / 360)
   const frameWidth = frameHeight * camera.aspect
-  const fx = THREE.MathUtils.clamp((shot.x + 1) * 0.5, 0.02, 0.98)
-  const fy = THREE.MathUtils.clamp((1 - shot.y) * 0.5, 0.02, 0.98)
+  // Leave the press point itself. Clamping this inset the shot from the cue
+  // whenever the drag started near the edge of the frame.
+  const fx = (shot.x + 1) * 0.5
+  const fy = (1 - shot.y) * 0.5
 
   spawnAnchor.set((fx - 0.5) * frameWidth, (0.5 - fy) * frameHeight, -distance)
   camera.localToWorld(spawnAnchor)
 
+  // NDC x and y are not the same world length on a wide frame. Scaling each
+  // by its half-extent keeps the streak on the line the cue drew.
+  const halfW = frameWidth * 0.5
+  const halfH = frameHeight * 0.5
   _shotRight.setFromMatrixColumn(camera.matrixWorld, 0)
   _shotUp.setFromMatrixColumn(camera.matrixWorld, 1)
-  _shotDir.copy(_shotRight).multiplyScalar(shot.dx).addScaledVector(_shotUp, shot.dy)
+  _shotDir
+    .copy(_shotRight)
+    .multiplyScalar(shot.dx * halfW)
+    .addScaledVector(_shotUp, shot.dy * halfH)
   if (_shotDir.lengthSq() < 1e-8) _shotDir.copy(_shotRight)
   _shotDir.normalize()
 
   const span = Math.hypot(frameWidth, frameHeight) * 1.25
   const speed = Math.hypot(frameWidth, frameHeight) * (0.7 + shot.power * 0.65)
   const rock = rockAlongAim(camera, shot)
+  let travel = span
   if (rock) {
     _shotDir.copy(rock).sub(spawnAnchor)
-    if (_shotDir.lengthSq() < 1e-6) _shotDir.copy(_shotRight)
+    if (_shotDir.lengthSq() < 1e-6) {
+      _shotDir
+        .copy(_shotRight)
+        .multiplyScalar(shot.dx * halfW)
+        .addScaledVector(_shotUp, shot.dy * halfH)
+    }
+    const reach = _shotDir.length()
     _shotDir.normalize()
-    meteor.start.copy(rock).addScaledVector(_shotDir, -span * 0.28)
-    meteor.end.copy(rock).addScaledVector(_shotDir, span * 0.72)
-  } else {
-    meteor.start.copy(spawnAnchor)
-    meteor.end.copy(spawnAnchor).addScaledVector(_shotDir, span)
+    travel = Math.max(span, reach * 1.4)
   }
+  meteor.start.copy(spawnAnchor)
+  meteor.end.copy(spawnAnchor).addScaledVector(_shotDir, travel)
   meteor.progress = 0
-  meteor.duration = span / speed
+  meteor.duration = travel / speed
   meteor.headWidth = 0.03 * (0.9 + shot.power * 0.35)
   meteor.fromClick = true
   meteor.player = true

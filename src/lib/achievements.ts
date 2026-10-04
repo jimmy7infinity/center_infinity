@@ -61,8 +61,6 @@ const DESTROYER_TARGET = 10
 const STAR_GAZER_TARGET = 5
 
 const unlocked = new Set<AchievementId>()
-/** Discovery order — newest unlocks append at the end of the tray. */
-const unlockedOrder: AchievementId[] = []
 let rockKills = 0
 let starTriggers = 0
 /** Head of queue is the chip currently announcing via its drawer. */
@@ -82,10 +80,6 @@ function notify() {
 
 export function getAchievement(id: AchievementId) {
   return BY_ID[id]
-}
-
-export function getUnlockedAchievements(): AchievementId[] {
-  return unlockedOrder.slice()
 }
 
 export function isAchievementUnlocked(id: AchievementId) {
@@ -114,7 +108,6 @@ export function subscribeAchievements(listener: () => void) {
 export function unlockAchievement(id: AchievementId) {
   if (!(id in BY_ID) || unlocked.has(id)) return false
   unlocked.add(id)
-  unlockedOrder.push(id)
   announceQueue.push(id)
   notify()
   return true

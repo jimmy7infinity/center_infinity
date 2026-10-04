@@ -75,11 +75,12 @@ const fitSample: ShellSample = {
 }
 
 /**
- * The Center Infinity page is the hero picture at three-quarter size.
- * The mark stays centred on the page, so the smaller crescents land at the
- * left of the right-hand scene instead of being enlarged to fill that panel.
+ * Center Infinity page: the hero cluster, a quarter smaller, in the right half.
+ * Same facing as the cover — the crescents stay nested and the light stays put.
  */
 const CLUSTER_PAGE_SCALE = 0.75
+/** Right edge of the cluster, inside the bezel. */
+const CLUSTER_PAGE_RIGHT = 0.9
 
 const clusterFit = {
   on: false,
@@ -89,16 +90,16 @@ const clusterFit = {
 }
 
 /**
- * Projects the hero arrangement and shrinks it in place. Scaling in NDC, then
- * unprojecting each shell at its own depth, keeps the nested mark concentric.
+ * Projects the hero arrangement, shrinks it, and pins it to the right half.
+ * Scaling in NDC, then unprojecting each shell at its own depth, keeps the
+ * nested mark concentric.
  */
 function updateClusterFit(camera: THREE.Camera, width: number, height: number) {
   camera.updateMatrixWorld()
   const aspect = Math.max(0.2, width / Math.max(height, 1))
-  let minX = Infinity
-  let maxX = -Infinity
   let minY = Infinity
   let maxY = -Infinity
+  let maxRight = -Infinity
   fitRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize()
   fitUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize()
   for (const motion of SHELL_MOTIONS) {
@@ -112,18 +113,15 @@ function updateClusterFit(camera: THREE.Camera, width: number, height: number) {
     const rx = Math.abs(fitNdc.x - cx)
     fitNdc.copy(fitWorld).addScaledVector(fitUp, radius).project(camera)
     const ry = Math.abs(fitNdc.y - cy)
-    minX = Math.min(minX, cx - rx)
-    maxX = Math.max(maxX, cx + rx)
+    maxRight = Math.max(maxRight, (cx + rx) * CLUSTER_PAGE_SCALE)
     minY = Math.min(minY, cy - ry)
     maxY = Math.max(maxY, cy + ry)
   }
-  const cx = (minX + maxX) * 0.5
   const cy = (minY + maxY) * 0.5
-  const scale = CLUSTER_PAGE_SCALE
   clusterFit.on = true
-  clusterFit.scale = scale
-  clusterFit.ox = cx * (1 - scale)
-  clusterFit.oy = cy * (1 - scale)
+  clusterFit.scale = CLUSTER_PAGE_SCALE
+  clusterFit.ox = CLUSTER_PAGE_RIGHT - maxRight
+  clusterFit.oy = cy * (1 - CLUSTER_PAGE_SCALE)
 }
 
 function placeInPanel(camera: THREE.Camera, position: THREE.Vector3) {
@@ -412,7 +410,7 @@ function Shell({ motion }: { motion: ShellMotion }) {
       )
     }
 
-    // Cover, and the Center Infinity page where the same scene sits at three-quarter size.
+    // Cover, and the Center Infinity page where the same cluster sits on the right.
     // Switched undamped: page turns swap content while the panel is blank, and
     // an unlit shell still writes depth, so a lingering fade would punch a
     // moon-shaped hole in the stars.

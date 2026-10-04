@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { isGameActive } from './gameMode'
 import { meteorAim, noteMeteorAimDrag } from './meteorAim'
+import { prefersTouchControls } from './touch'
 
 /**
  * Mutable pointer singleton, read per-frame by the scene. Same shape and same
@@ -28,16 +29,59 @@ export const pointerState = {
   spaceClick: false,
   /** Written by shells each frame — pointer ray currently hits a planet. */
   overShell: false,
+  /**
+   * A finger tap on a phone. The debris scene consumes it and bursts the
+   * meteor under that point. Phones do not fire aimed shots.
+   */
+  meteorTap: false,
+  tapX: 0,
+  tapY: 0,
 }
 
 export function usePointerTracking(active: boolean) {
   useEffect(() => {
     if (!active) return
 
+    const isChromeTarget = (target: EventTarget | null) =>
+      target instanceof Element &&
+      !!target.closest(
+        'a, button, input, textarea, select, label, dialog, header, nav, [role="button"]',
+      )
+
     const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
     if (!fine.matches) {
       pointerState.enabled = false
-      return
+      if (!prefersTouchControls()) return
+
+      let originX = 0
+      let originY = 0
+      let tracking = false
+
+      const onDown = (event: PointerEvent) => {
+        if (event.pointerType === 'mouse') return
+        tracking = true
+        originX = event.clientX
+        originY = event.clientY
+      }
+
+      const onTap = (event: PointerEvent) => {
+        if (!tracking || event.pointerType === 'mouse') return
+        tracking = false
+        // A page swipe is not a tap on the rock under the finger.
+        if (Math.hypot(event.clientX - originX, event.clientY - originY) > 18) return
+        if (isGameActive() || isChromeTarget(event.target)) return
+        pointerState.tapX = (event.clientX / window.innerWidth) * 2 - 1
+        pointerState.tapY = -((event.clientY / window.innerHeight) * 2 - 1)
+        pointerState.meteorTap = true
+      }
+
+      window.addEventListener('pointerdown', onDown)
+      window.addEventListener('pointerup', onTap)
+      return () => {
+        window.removeEventListener('pointerdown', onDown)
+        window.removeEventListener('pointerup', onTap)
+        pointerState.meteorTap = false
+      }
     }
     pointerState.enabled = true
 
@@ -76,12 +120,6 @@ export function usePointerTracking(active: boolean) {
         noteMeteorAimDrag()
       }
     }
-
-    const isChromeTarget = (target: EventTarget | null) =>
-      target instanceof Element &&
-      !!target.closest(
-        'a, button, input, textarea, select, label, dialog, [role="button"]',
-      )
 
     // Comet clicks often land on DOM copy under the canvas. preventDefault on
     // mousedown stops the browser from painting a text selection ("Scroll", etc).

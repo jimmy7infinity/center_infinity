@@ -3,7 +3,6 @@ import {
   dismissAchievementAnnounce,
   getAchievement,
   getAnnouncingAchievement,
-  getUnlockedAchievements,
   subscribeAchievements,
   type AchievementId,
 } from '../lib/achievements'
@@ -111,91 +110,36 @@ function AchievementIcon({
   return <Icon className={className} />
 }
 
-function AchievementChip({
-  id,
-  announcing,
-}: {
-  id: AchievementId
-  announcing: boolean
-}) {
-  const def = getAchievement(id)
-  const label = announcing ? `achievement unlocked: ${def.name}` : def.name
-  return (
-    <li
-      className={`achievement-chip${announcing ? ' is-announcing' : ''}`}
-    >
-      <button
-        type="button"
-        className="achievement-chip__hit"
-        aria-label={label}
-      >
-        <span className="achievement-chip__icon" aria-hidden>
-          <AchievementIcon id={id} className="h-3.5 w-3.5" />
-        </span>
-      </button>
-      {/* Sibling column (not flex child) so 0fr can collapse to true zero width. */}
-      <div className="achievement-chip__drawer" aria-hidden={!announcing}>
-        <div className="achievement-chip__clip">
-          <div className="achievement-chip__panel">
-            <span className="achievement-chip__name">{label}</span>
-          </div>
-        </div>
-      </div>
-      {announcing ? (
-        <span
-          className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0"
-          role="status"
-          aria-live="polite"
-        >
-          {label}
-        </span>
-      ) : null}
-    </li>
-  )
-}
-
-type Placement = 'header' | 'game'
-
-/** Discovered achievement icons — new unlocks append and announce via drawer. */
-export function Achievements({ placement }: { placement: Placement }) {
-  const [unlocked, setUnlocked] = useState<AchievementId[]>(() =>
-    getUnlockedAchievements(),
-  )
-  const [announcingId, setAnnouncingId] = useState<AchievementId | null>(() =>
+/** One unlock, under the header, then gone. Nothing stays in the bar. */
+export function Achievements() {
+  const [id, setId] = useState<AchievementId | null>(() =>
     getAnnouncingAchievement(),
   )
 
   useEffect(() => {
     return subscribeAchievements(() => {
-      setUnlocked(getUnlockedAchievements())
-      setAnnouncingId(getAnnouncingAchievement())
+      setId(getAnnouncingAchievement())
     })
   }, [])
 
   useEffect(() => {
-    if (!announcingId) return
-    const timer = window.setTimeout(
-      () => dismissAchievementAnnounce(),
-      ANNOUNCE_MS,
-    )
+    if (!id) return
+    const timer = window.setTimeout(() => dismissAchievementAnnounce(), ANNOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [announcingId])
+  }, [id])
 
-  if (unlocked.length === 0) return null
+  if (!id) return null
+  const def = getAchievement(id)
 
   return (
-    <ul
-      className={`achievement-tray pointer-events-auto ${
-        placement === 'header' ? 'max-w-[min(100%,18rem)] justify-end' : ''
-      }`}
-    >
-      {unlocked.map((id) => (
-        <AchievementChip
-          key={id}
-          id={id}
-          announcing={id === announcingId}
-        />
-      ))}
-    </ul>
+    <div key={id} className="achievement-toast" role="status" aria-live="polite">
+      <span className="achievement-toast__icon" aria-hidden>
+        <AchievementIcon id={id} className="h-3.5 w-3.5" />
+      </span>
+      <span className="achievement-toast__copy">
+        <span className="achievement-toast__name">{def.name}</span>
+        <span className="achievement-toast__blurb">{def.blurb}</span>
+      </span>
+    </div>
   )
 }

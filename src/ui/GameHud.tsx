@@ -12,7 +12,6 @@ import {
 import { flyerControls, isTouchFlight } from '../game/spaceFlyer/controls'
 import { prefersTouchControls } from '../lib/touch'
 import { MobileGamePad } from './MobileGamePad'
-import { Achievements } from './Achievements'
 
 const HINT_MS = 3200
 
@@ -85,7 +84,6 @@ export function GameHud() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[60]">
       <div className="absolute left-[max(1.25rem,env(safe-area-inset-left))] top-[max(1.25rem,env(safe-area-inset-top))] flex flex-col items-start gap-2 md:left-12">
-        <Achievements placement="game" />
         <div className="font-mono text-sm tracking-[0.18em] text-rim/80">
           {String(score).padStart(4, '0')}
         </div>

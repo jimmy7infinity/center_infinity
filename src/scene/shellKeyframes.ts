@@ -210,8 +210,7 @@ export const HERO_CAMERA = {
  * No heap allocations — keep one `ShellSample` per shell.
  *
  * The Center Infinity page does not shift these fractions. It draws this same
- * picture at three-quarter size, so the nested crescents stay concentric and
- * the smaller ones sit at the left of the right-hand scene.
+ * picture smaller, in the right half, with the cover's facing.
  */
 export function resolveShellPose(
   motion: ShellMotion,

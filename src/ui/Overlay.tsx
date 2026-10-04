@@ -1,5 +1,6 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { StatusBar } from './StatusBar'
+import { Achievements } from './Achievements'
 import { MeteorAimGuide, MeteorAimToggle } from './MeteorAim'
 import { PageNav } from './PageNav'
 import { InkPhotoFilter } from './InkPhoto'
@@ -11,12 +12,15 @@ import {
   ProjectPage,
   StudioPage,
 } from './Pages'
+import { PracticePage } from './PracticePage'
+import { ClientSheet } from './ClientSheet'
 import { GameHud } from './GameHud'
 import { EmitterLight } from './EmitterLight'
 import { WarpMesh } from './WarpMesh'
 import { projects } from '../content/projects'
 import { BEATS, WORK_BEATS, type BeatId } from '../lib/beats'
 import { getPageIndex, subscribePage } from '../lib/pages'
+import { prefersTouchControls } from '../lib/touch'
 
 if (projects.length !== WORK_BEATS.length) {
   throw new Error(
@@ -36,12 +40,16 @@ function pageTitle(beat: BeatId) {
       return 'Cover'
     case 'services':
       return 'Studio'
+    case 'practice':
+      return 'Practice'
     case 'work-1':
     case 'work-2':
     case 'work-3':
     case 'work-4':
     case 'work-5':
       return projectFor(beat).name
+    case 'clients':
+      return 'Clients'
     case 'contact':
       return 'Contact'
     default: {
@@ -59,12 +67,16 @@ function PageContent({ beat, active }: { beat: BeatId; active: boolean }) {
       return <CoverPage />
     case 'services':
       return <StudioPage />
+    case 'practice':
+      return <PracticePage />
     case 'work-1':
     case 'work-2':
     case 'work-3':
     case 'work-4':
     case 'work-5':
       return <ProjectPage project={projectFor(beat)} active={active} />
+    case 'clients':
+      return <ClientSheet />
     case 'contact':
       return <ContactPage />
     default: {
@@ -107,7 +119,7 @@ function Page({
       id={beat}
       className={`ink-page${isWorkBeat(beat) ? ' ink-page--split' : ''}${
         beat === 'contact' ? ' ink-page--footed' : ''
-      }`}
+      }${beat === 'practice' || beat === 'clients' ? ' ink-page--fit' : ''}`}
       hidden={!active}
       aria-label={PAGE_TITLES[index]}
       data-page-scroll
@@ -121,9 +133,26 @@ function usePageIndex() {
   return useSyncExternalStore(subscribePage, getPageIndex)
 }
 
+function usePrefersTouch() {
+  const [touch, setTouch] = useState(prefersTouchControls)
+  useEffect(() => {
+    const coarse = window.matchMedia('(pointer: coarse)')
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const update = () => setTouch(prefersTouchControls())
+    coarse.addEventListener('change', update)
+    fine.addEventListener('change', update)
+    return () => {
+      coarse.removeEventListener('change', update)
+      fine.removeEventListener('change', update)
+    }
+  }, [])
+  return touch
+}
+
 /** The e-ink display: status bar, the page on screen, and the page footer. */
 export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
   const index = usePageIndex()
+  const touch = usePrefersTouch()
 
   return (
     <>
@@ -144,10 +173,15 @@ export function Overlay({ showChrome = true }: { showChrome?: boolean }) {
       {showChrome ? (
         <div className="game-veil pointer-events-none fixed inset-0 z-[103]">
           <StatusBar title={PAGE_TITLES[index]} />
-          {BEATS[index] === 'hero' ? <MeteorAimToggle /> : null}
+          {BEATS[index] === 'hero' && !touch ? <MeteorAimToggle /> : null}
           <MeteorAimGuide />
           {BEATS[index] === 'contact' ? <ContactFooter /> : null}
           <PageNav index={index} titles={PAGE_TITLES} />
+        </div>
+      ) : null}
+      {showChrome ? (
+        <div className="pointer-events-none fixed inset-0 z-[103]">
+          <Achievements />
         </div>
       ) : null}
       <GameHud />

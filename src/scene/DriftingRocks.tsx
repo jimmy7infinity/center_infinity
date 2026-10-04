@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { recordMeteorStrike } from '../lib/achievements'
+import { pointerState } from '../lib/pointer'
 import { INK_SURFACE_DISPLAY } from './InkEffect'
 import { createRockBurstSystem } from '../game/spaceFlyer/rockBurst'
 import {
@@ -57,6 +58,8 @@ const _ab = new THREE.Vector3()
 const _ac = new THREE.Vector3()
 const _closest = new THREE.Vector3()
 const _burstOrigin = new THREE.Vector3()
+const _tapNdc = new THREE.Vector3()
+const _tapDir = new THREE.Vector3()
 
 type RockKind = 'drift' | 'giant' | 'shard' | 'shower'
 
@@ -469,6 +472,7 @@ export function DriftingRocks() {
   const rocksRef = useRef<Rock[]>(
     Array.from({ length: POOL_SIZE }, (_, index) => createRock(index)),
   )
+  const destroyRockRef = useRef<(index: number) => boolean>(() => false)
   const spawnTimerRef = useRef(2)
   const giantTimerRef = useRef(RARE_INTERVAL)
   const showerTimerRef = useRef(RARE_INTERVAL * 0.5)
@@ -549,6 +553,7 @@ export function DriftingRocks() {
       recordMeteorStrike()
       return true
     }
+    destroyRockRef.current = destroyRock
 
     setDriftingRockCollider((a, b) => {
       const rocks = rocksRef.current
@@ -592,6 +597,7 @@ export function DriftingRocks() {
     })
 
     return () => {
+      destroyRockRef.current = () => false
       setDriftingRockCollider(null)
       setDriftingRockRayPick(null)
       material.dispose()
@@ -607,6 +613,27 @@ export function DriftingRocks() {
     if (!(camera instanceof THREE.PerspectiveCamera)) return
 
     const rocks = rocksRef.current
+
+    if (pointerState.meteorTap) {
+      pointerState.meteorTap = false
+      _tapNdc.set(pointerState.tapX, pointerState.tapY, 0.5).unproject(camera)
+      _tapDir.copy(_tapNdc).sub(camera.position).normalize()
+      let bestT = Infinity
+      let best = -1
+      for (let i = 0; i < POOL_SIZE; i++) {
+        const rock = rocks[i]
+        if (!rock.active) continue
+        const body = hitRadiusFor(rock, geoRadii.current[i])
+        const radius =
+          rock.kind === 'giant' ? body : Math.min(body * 2.4, body + 0.45)
+        const t = raySphere(camera.position, _tapDir, rock.position, radius)
+        if (t > 0 && t < bestT) {
+          bestT = t
+          best = i
+        }
+      }
+      if (best >= 0) destroyRockRef.current(best)
+    }
 
     spawnTimerRef.current -= delta
     if (spawnTimerRef.current <= 0) {

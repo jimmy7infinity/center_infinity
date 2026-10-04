@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BrandMark } from './BrandMark'
 import { Emitter } from './StatusLight'
-import { Achievements } from './Achievements'
 import {
   canEnterGame,
   enterGame,
@@ -16,6 +15,7 @@ const MARK_TRIPLE_CLICKS = 3
 const clockFormat = new Intl.DateTimeFormat(undefined, {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
 })
 
 /** Triple-click the crescent to open the flyer. */
@@ -36,7 +36,7 @@ function useMarkUnlock() {
   }
 }
 
-/** The reader's own time, redrawn on the minute like a real panel would. */
+/** The reader's own time, 24-hour, redrawn on the minute like a real panel would. */
 function Clock() {
   const [now, setNow] = useState(() => new Date())
 
@@ -83,7 +83,6 @@ export function StatusBar({ title }: { title: string }) {
       </p>
 
       <div className="flex items-center justify-end gap-4 sm:gap-5">
-        <Achievements placement="header" />
         {lastScore > 0 ? (
           <span className="hidden tabular-nums md:inline">
             Score {String(lastScore).padStart(4, '0')}
