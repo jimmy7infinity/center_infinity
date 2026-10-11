@@ -60,9 +60,9 @@ const catalog: Project[] = [
     name: 'Center Infinity',
     tagline: 'The studio, as a living scene',
     description:
-      'This site. A dark e-ink panel with the mark as a cel-shaded field of crescents on its cover — real type, a page refresh instead of a scroll, and a flyer easter egg behind the crescent.',
+      'This site. A dark e-ink panel with the mark as a cel-shaded field of crescents on its cover. Real type, a page refresh instead of a scroll, and a flyer easter egg behind the crescent.',
     audience: 'Anyone deciding whether we can build something they will remember.',
-    role: 'Solo — scene, product, copy',
+    role: 'Solo: scene, product, copy',
     highlights: [
       'WebGL printed as e-ink',
       'Dual-canvas debris over type',
@@ -78,9 +78,9 @@ const catalog: Project[] = [
     name: 'Dispose',
     tagline: 'A digital disposable for nights that will not repeat',
     description:
-      'Guests shoot a shared roll on their phones. Nobody sees a frame until the host develops it. Finite shots, no guest accounts, reveal as ceremony — built so the photos stay scarce on purpose.',
+      'Guests shoot a shared roll on their phones. Nobody sees a frame until the host develops it. Finite shots, no guest accounts, reveal as ceremony. Built so the photos stay scarce on purpose.',
     audience: 'Hosts who want the night documented, not performed.',
-    role: 'Solo — product, backend, media pipeline',
+    role: 'Solo: product, backend, media pipeline',
     highlights: [
       'Shared roll, host develops',
       'Direct signed uploads to R2',
@@ -101,9 +101,9 @@ const catalog: Project[] = [
     name: 'Boost',
     tagline: 'A persistent AI teammate, not a chat window',
     description:
-      'A runtime with rooms, memory, tools, and an approval gate. Boost can research, draft, remember, and hunt roles through a ranking backend — it cannot send mail or act outside the room without a human. Built as a teammate architecture, not a wrapper around one model.',
+      'A runtime with rooms, memory, tools, and an approval gate. Boost can research, draft, remember, and hunt roles through a ranking backend. It cannot send mail or act outside the room without a human. Built as a teammate architecture, not a wrapper around one model.',
     audience: 'Small teams who need another pair of hands that stays in the work.',
-    role: 'Solo — runtime, channels, skills',
+    role: 'Solo: runtime, channels, skills',
     highlights: [
       'Web room as the home',
       'Approvals before outbound',
@@ -124,9 +124,9 @@ const catalog: Project[] = [
     name: 'Dynasty',
     tagline: 'A persistent world with economic consequence',
     description:
-      'A continuous-map game of gathering, building, and long-horizon networks. Play mutates the world; the economy is meant to emerge from desire, scarcity, and interdependence — not a token bolted onto a map. Browser world prototype plus an Unreal 5.8 demonstrator.',
+      'A continuous-map game of gathering, building, and long-horizon networks. Play mutates the world; the economy is meant to emerge from desire, scarcity, and interdependence, not a token bolted onto a map. Browser world prototype plus an Unreal 5.8 demonstrator.',
     audience: 'Players who want consequence, not a tile empire.',
-    role: 'Solo — design corpus, simulation kernel, world prototype',
+    role: 'Solo: design corpus, simulation kernel, world prototype',
     highlights: [
       'Continuous map, not a tile grid',
       'Play as the protocol interface',
@@ -143,9 +143,9 @@ const catalog: Project[] = [
     name: 'Studio Eternity',
     tagline: 'Local-first AI media, capability first',
     description:
-      'An operator console for image, video, and audio on Apple Silicon. You pick a capability — upscale, generate, edit — not a model brand or a ComfyUI graph. The platform owns the queue, the catalog, and the job; SeedVR2 and ComfyUI stay behind the glass.',
+      'An operator console for image, video, and audio on Apple Silicon. You pick a capability (upscale, generate, edit), not a model brand or a ComfyUI graph. The platform owns the queue, the catalog, and the job; SeedVR2 and ComfyUI stay behind the glass.',
     audience: 'Operators who want 4K output without living in a node graph.',
-    role: 'Solo — platform, catalog, console',
+    role: 'Solo: platform, catalog, console',
     highlights: [
       'Capability-first, not ComfyUI-first',
       'Queue, jobs, health, benchmarks',
@@ -170,9 +170,9 @@ const catalog: Project[] = [
     name: 'LookingLocal',
     tagline: 'Koh Phangan, at an easier pace',
     description:
-      'A guide that points visitors at local stays, food, and experiences — so the island is used, not extracted. Built as a real listing surface, not a brochure, with the operator tools sitting behind the pretty front.',
+      'A guide that points visitors at local stays, food, and experiences, so the island is used, not extracted. Built as a real listing surface, not a brochure, with the operator tools sitting behind the pretty front.',
     audience: 'Travellers who want the island, and hosts who live there.',
-    role: 'Solo — product and platform',
+    role: 'Solo: product and platform',
     highlights: [
       'Stays, food, experiences',
       'Operator tools behind the guide',
@@ -234,7 +234,7 @@ export const services: Service[] = [
     icon: 'stack',
     title: 'Full-stack product development',
     detail:
-      'Interface, API, data, and deploy from one desk. You get a system you can run — not a prototype that needs a second team.',
+      'Interface, API, data, and deploy from one desk. You get a system you can run, not a prototype that needs a second team.',
   },
   {
     icon: 'grid',
@@ -252,6 +252,6 @@ export const services: Service[] = [
     icon: 'orbit',
     title: 'Interactive & 3D web',
     detail:
-      'Scenes that are the product — 60fps and designed to be remembered. This site is the working brief.',
+      'Scenes that are the product. 60fps and designed to be remembered. This site is the working brief.',
   },
 ]

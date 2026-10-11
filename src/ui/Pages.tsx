@@ -28,21 +28,21 @@ export function CoverPage() {
 
 export function StudioPage() {
   return (
-    <div className="ink-page__inner">
+    <div className="ink-page__inner studio">
       <p className="ink-label mb-6">Studio</p>
       <h2 className="ink-title max-w-3xl">
-        We design and ship the product — the interface, the systems behind it,
+        We design and ship the product: the interface, the systems behind it,
         and the deploy.
       </h2>
       <p className="ink-lede mt-4 max-w-2xl">
         Founders leave with something that runs, not a deck about it.
       </p>
 
-      <ul className="mt-10 grid border-t border-rule sm:grid-cols-2 sm:gap-x-10">
+      <ul className="studio__services mt-10 grid border-t border-rule sm:grid-cols-2 sm:gap-x-10">
         {services.map((service, i) => {
           const Icon = SERVICE_ICONS[service.icon]
           return (
-            <li key={service.title} className="border-b border-rule py-5">
+            <li key={service.title} className="studio__service border-b border-rule py-5">
               <div className="ink-label mb-3 flex items-center gap-3">
                 <span className="tabular-nums">{String(i + 1).padStart(2, '0')}</span>
                 <Icon className="h-3.5 w-3.5 text-glow" />

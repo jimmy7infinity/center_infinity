@@ -73,10 +73,16 @@ const fitSample: ShellSample = {
   lightDir: new THREE.Vector3(),
   intensity: 0,
 }
+const heroHold = new THREE.Vector3()
+const heroLightHold = new THREE.Vector3()
+const viewFrom = new THREE.Vector3()
+const viewTo = new THREE.Vector3()
+const lightSpin = new THREE.Quaternion()
 
 /**
  * Center Infinity page: the hero cluster, a quarter smaller, in the right half.
- * Same facing as the cover — the crescents stay nested and the light stays put.
+ * Screen size and crescent facing are matched back to the cover so the mark
+ * stays the same arrangement, only smaller and set to the right.
  */
 const CLUSTER_PAGE_SCALE = 0.75
 /** Right edge of the cluster, inside the bezel. */
@@ -131,6 +137,61 @@ function placeInPanel(camera: THREE.Camera, position: THREE.Vector3) {
   fitNdc.y = fitNdc.y * clusterFit.scale + clusterFit.oy
   fitNdc.z = clipZ
   position.copy(fitNdc).unproject(camera)
+}
+
+/** Horizontal NDC span of a sphere at `position` with world `radius`. */
+function ndcSpanX(camera: THREE.Camera, position: THREE.Vector3, radius: number) {
+  fitNdc.copy(position).project(camera)
+  const cx = fitNdc.x
+  fitWorld.copy(position).addScaledVector(fitRight, radius)
+  fitNdc.copy(fitWorld).project(camera)
+  return Math.abs(fitNdc.x - cx)
+}
+
+/**
+ * World radius whose on-screen size matches the hero sphere after the panel
+ * scale. A flat world-space scale misses, because a shell moved toward the
+ * edge sits at a different distance than it did on the cover.
+ */
+function panelWorldRadius(
+  camera: THREE.Camera,
+  heroPosition: THREE.Vector3,
+  heroRadius: number,
+  panelPosition: THREE.Vector3,
+) {
+  const heroSpan = ndcSpanX(camera, heroPosition, heroRadius)
+  const desired = heroSpan * clusterFit.scale
+  const guess = heroRadius * clusterFit.scale
+  const guessSpan = ndcSpanX(camera, panelPosition, guess)
+  if (guessSpan < 1e-5) return guess
+  return guess * (desired / guessSpan)
+}
+
+/**
+ * Moving a shell off the cover's view ray shows a different slice of it.
+ * Rotate the light with that change so the crescent matches the cover.
+ */
+function matchCrescent(
+  camera: THREE.Camera,
+  heroPosition: THREE.Vector3,
+  panelPosition: THREE.Vector3,
+  heroLight: THREE.Vector3,
+  out: THREE.Vector3,
+) {
+  viewFrom.subVectors(camera.position, heroPosition)
+  viewTo.subVectors(camera.position, panelPosition)
+  if (viewFrom.lengthSq() < 1e-8 || viewTo.lengthSq() < 1e-8) {
+    out.copy(heroLight)
+    return
+  }
+  viewFrom.normalize()
+  viewTo.normalize()
+  if (viewFrom.dot(viewTo) > 0.9995) {
+    out.copy(heroLight)
+    return
+  }
+  lightSpin.setFromUnitVectors(viewFrom, viewTo)
+  out.copy(heroLight).applyQuaternion(lightSpin).normalize()
 }
 
 /**
@@ -333,12 +394,23 @@ function Shell({ motion }: { motion: ShellMotion }) {
     const inPanel = clusterFit.on
     // Recomputed every frame rather than on a resize event so the geometry stays
     // a unit sphere and reframing costs nothing but a multiply.
-    const radius =
-      resolveShellRadius(motion, aspect) * (inPanel ? clusterFit.scale : 1)
-    mesh.scale.setScalar(radius)
-
+    const heroRadius = resolveShellRadius(motion, aspect)
     resolveShellPose(motion, aspect, sampleOut)
-    if (inPanel) placeInPanel(state.camera, sampleOut.position)
+    let radius = heroRadius
+    if (inPanel) {
+      heroHold.copy(sampleOut.position)
+      heroLightHold.copy(sampleOut.lightDir)
+      placeInPanel(state.camera, sampleOut.position)
+      radius = panelWorldRadius(state.camera, heroHold, heroRadius, sampleOut.position)
+      matchCrescent(
+        state.camera,
+        heroHold,
+        sampleOut.position,
+        heroLightHold,
+        sampleOut.lightDir,
+      )
+    }
+    mesh.scale.setScalar(radius)
     const where = inPanel ? 'panel' : pageState.index === 0 || isGameActive() ? 'hero' : 'hidden'
 
     const intensityTarget = sampleOut.intensity * INTENSITY_SCALE

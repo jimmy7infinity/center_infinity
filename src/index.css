@@ -474,6 +474,65 @@
   padding-block: clamp(1.75rem, 6vh, 4rem);
 }
 
+/* Short windows: the page is one screen. Extra padding is what opens an
+   inner scroll and traps the trackpad inside the section. */
+@media (max-height: 780px) {
+  .ink-page__inner {
+    padding-block: clamp(0.9rem, 2.2vh, 1.35rem);
+  }
+}
+
+@media (max-height: 660px) {
+  .ink-page__inner {
+    padding-block: 0.8rem;
+  }
+
+  .ink-title {
+    font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+  }
+
+  .studio .ink-label {
+    margin-bottom: 0.45rem;
+  }
+
+  .studio .ink-lede {
+    margin-top: 0.4rem;
+  }
+
+  .studio__services {
+    margin-top: 0.75rem;
+  }
+
+  .studio__service {
+    padding-block: 0.5rem;
+  }
+
+  .studio__service .ink-body {
+    margin-top: 0.15rem;
+    line-height: 1.4;
+  }
+
+  .dossier__viewport .mb-6 {
+    margin-bottom: 0.55rem;
+  }
+
+  .dossier__viewport .mt-6 {
+    margin-top: 0.6rem;
+  }
+
+  .dossier__viewport .mt-5 {
+    margin-top: 0.45rem;
+  }
+
+  .dossier__viewport .mt-4 {
+    margin-top: 0.35rem;
+  }
+
+  .dossier__viewport li {
+    padding-block: 0.28rem;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Project pages: e-ink info on the left, a colour screen set into the */
 /* device on the right.                                                */

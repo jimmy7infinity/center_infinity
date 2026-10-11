@@ -160,7 +160,7 @@ export function MobileGamePad() {
         className={`pointer-events-auto mobile-pad-btn mobile-pad-btn--thrust touch-none ${
           thrusting ? 'is-active' : ''
         }`}
-        aria-label="Thrust — double tap to burst"
+        aria-label="Thrust, double tap to burst"
         onPointerDown={onThrustDown}
         onPointerUp={onThrustUp}
         onPointerCancel={onThrustUp}

@@ -27,6 +27,12 @@ let touchOrigin: { y: number; target: EventTarget | null } | null = null
 let lastWheelAt = 0
 /** The current wheel gesture already scrolled a page's own content. */
 let wheelGestureScrolled = false
+/**
+ * Wheel delta spent at a scroller's edge. A continued push turns the page,
+ * so a section that just reached its end does not swallow the rest of the gesture.
+ */
+let edgePush = 0
+const EDGE_PUSH = 28
 
 const listeners = new Set<(index: number) => void>()
 
@@ -129,7 +135,8 @@ function canScroll(scroller: HTMLElement | null, delta: number) {
   if (!scroller) return false
   const max = scroller.scrollHeight - scroller.clientHeight
   if (max <= 1) return false
-  return delta > 0 ? scroller.scrollTop < max - 1 : scroller.scrollTop > 1
+  // A few pixels of slack, so a rubber-band at the end still counts as the end.
+  return delta > 0 ? scroller.scrollTop < max - 6 : scroller.scrollTop > 6
 }
 
 function onWheel(event: WheelEvent) {
@@ -137,16 +144,28 @@ function onWheel(event: WheelEvent) {
   const now = performance.now()
   const newGesture = now - lastWheelAt > GESTURE_GAP_MS
   lastWheelAt = now
-  if (newGesture) wheelGestureScrolled = false
+  if (newGesture) {
+    wheelGestureScrolled = false
+    edgePush = 0
+  }
 
   if (canScroll(scrollerFor(event.target, event.deltaY), event.deltaY)) {
     wheelGestureScrolled = true
+    edgePush = 0
     return
   }
   event.preventDefault()
-  // Coasting off the end of a long page must not also turn it.
-  if (wheelGestureScrolled) return
-  if (Math.abs(event.deltaY) < WHEEL_THRESHOLD) return
+  // Past the end of a section, a further push turns the page. A tiny coast
+  // is not enough; the reader has to keep going.
+  if (wheelGestureScrolled) {
+    if (edgePush !== 0 && Math.sign(edgePush) !== Math.sign(event.deltaY)) edgePush = 0
+    edgePush += event.deltaY
+    if (Math.abs(edgePush) < EDGE_PUSH) return
+  } else if (Math.abs(event.deltaY) < WHEEL_THRESHOLD) {
+    return
+  }
+  edgePush = 0
+  wheelGestureScrolled = false
   turnPage(event.deltaY)
 }
 

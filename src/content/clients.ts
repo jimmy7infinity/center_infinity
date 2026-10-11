@@ -13,6 +13,8 @@ export type ClientWork =
       imageAlt: string
       logo: string
       logoAlt: string
+      /** Kept in the roster, left off the sheet until it is ready to show. */
+      hidden?: boolean
     }
   | {
       kind: 'reserved'
@@ -23,7 +25,7 @@ export type ClientWork =
       kind: 'open'
     }
 
-export const clients: readonly ClientWork[] = [
+const roster: readonly ClientWork[] = [
   {
     kind: 'live',
     name: 'Specter CK & Partners',
@@ -43,6 +45,7 @@ export const clients: readonly ClientWork[] = [
     imageAlt: 'Wiktoria Lewandowska’s portfolio, a portrait on a pale green page',
     logo: '/clients/wiktoria-logo.png',
     logoAlt: 'Wiktoria Lewandowska',
+    hidden: true,
   },
   {
     kind: 'reserved',
@@ -53,3 +56,20 @@ export const clients: readonly ClientWork[] = [
     kind: 'open',
   },
 ]
+
+function isShown(client: ClientWork) {
+  switch (client.kind) {
+    case 'live':
+      return !client.hidden
+    case 'reserved':
+    case 'open':
+      return true
+    default: {
+      const exhaustive: never = client
+      throw new Error(`Unhandled client work: ${JSON.stringify(exhaustive)}`)
+    }
+  }
+}
+
+/** On the sheet, in order. Hidden entries stay in the roster. */
+export const clients: readonly ClientWork[] = roster.filter(isShown)

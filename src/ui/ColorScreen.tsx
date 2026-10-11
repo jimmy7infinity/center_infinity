@@ -98,7 +98,7 @@ export function ColorScreen({
           <img
             className="color-screen__shot"
             src={shot}
-            alt={`${project.name} — live product`}
+            alt={`${project.name}, live product`}
             draggable={false}
           />
         ) : media.length > 0 ? (
